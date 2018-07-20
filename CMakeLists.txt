@@ -1,0 +1,49 @@
+cmake_minimum_required(VERSION 3.10)
+project(motorboat)
+
+enable_testing()
+find_package(GTest REQUIRED)
+include_directories(${GTEST_INCLUDE_DIRS})
+
+set(CMAKE_C_COMPILER gcc-8 CACHE STRING "C compiler" FORCE)
+set(CMAKE_CXX_COMPILER g++-8 CACHE STRING "C++ compiler" FORCE)
+
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+
+set(CMAKE_CXX_STANDARD 11)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+if(DEBUG)
+    message("Debug is on")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -ggdb3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -ggdb3")
+endif(DEBUG)
+
+set(CMAKE_CXX_FLAGS "-O3 -fopenmp -Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fopenmp")
+
+find_package(OpenMP REQUIRED)
+if(OPENMP_FOUND)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+else(OPENMP_FOUND)
+    message("ERROR: OpenMP could not be found")
+endif(OPENMP_FOUND)
+
+#if(GTEST_FOUND)
+#    set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GOOGLE_TEST_LIB}")
+#endif(GTEST_FOUND)
+
+
+add_library(motorboat SHARED trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
+add_executable(test_trajectory test_trajectory.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
+add_executable(run_parent_traj run_parent_traj.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
+target_link_libraries(test_trajectory gtest gtest_main)
+
+target_link_libraries(motorboat Eigen3::Eigen)
+add_test(test_trajectory test_trajectory)
