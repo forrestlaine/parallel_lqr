@@ -92,11 +92,16 @@ TEST(TestTrajectory, LQRSimple) {
   const Eigen::MatrixXd Inn = Eigen::MatrixXd::Identity(n, n);
   const Eigen::MatrixXd Imm = Eigen::MatrixXd::Identity(m, m);
   const Eigen::VectorXd Zn = Eigen::VectorXd::Zero(n);
+  const Eigen::MatrixXd Znn = Eigen::MatrixXd::Zero(n, n);
+
   test_traj.set_initial_constraint_jacobian_state(&Inn);
   test_traj.set_initial_constraint_affine_term(&x0);
 
   test_traj.set_initial_constraint_dimension(n);
-  test_traj.set_terminal_constraint_dimension(n);
+
+  int term_dim = n;
+
+  test_traj.set_terminal_constraint_dimension(term_dim);
 
   Eigen::VectorXd xT(n);
   Eigen::VectorXd xP(n);
@@ -111,16 +116,19 @@ TEST(TestTrajectory, LQRSimple) {
     test_traj.set_dynamics_affine_term(t, &c);
     test_traj.set_num_active_constraints(t, 0);
 
-    test_traj.set_hamiltonian_hessians_state_state(t, &Inn);
+    test_traj.set_hamiltonian_hessians_state_state(t, &Znn);
     test_traj.set_hamiltonian_hessians_control_control(t, &Imm);
     test_traj.set_hamiltonian_gradients_state(t, &c);
     test_traj.set_hamiltonian_gradients_control(t, &r);
   }
-  test_traj.set_terminal_cost_hessians_state_state(&Inn);
+
+  test_traj.set_terminal_cost_hessians_state_state(&Znn);
   test_traj.set_terminal_cost_gradient_state(&c);
-  test_traj.set_terminal_constraint_jacobian_state(&Inn);
-  test_traj.set_terminal_constraint_jacobian_terminal_projection(&Inn);
-  test_traj.set_terminal_constraint_affine_term(&Zn);
+  if (term_dim > 0) {
+    test_traj.set_terminal_constraint_jacobian_state(&Inn);
+    test_traj.set_terminal_constraint_jacobian_terminal_projection(&Inn);
+    test_traj.set_terminal_constraint_affine_term(&Zn);
+  }
 
   std::cout << "Starting computation" << std::endl;
 
@@ -143,13 +151,19 @@ TEST(TestTrajectory, LQRSimple) {
   Eigen::MatrixXd Uz;
   Eigen::VectorXd U1;
 
+  Eigen::MatrixXd Vxx, Vzx, Vzz, V11;
+  Eigen::VectorXd Vx1, Vz1;
+
   for (int t = 0; t < T; ++t) {
     test_traj.get_state_dependencies_initial_state_projection(t, Tx);
     test_traj.get_state_dependencies_terminal_state_projection(t, Tz);
     test_traj.get_state_dependencies_affine_term(t, T1);
 
-    auto temp = Tx * (-x0) + T1 + Tz * (-xT);
 
+    Eigen::VectorXd temp = Tx * (-x0) + T1;
+    if (term_dim > 0) {
+      temp += Tz * (-xT);
+    }
     x = temp;
     std::cout << "t: " << t + 1 << std::endl;
     std::cout << "x: " << x.transpose() << std::endl;
@@ -157,34 +171,86 @@ TEST(TestTrajectory, LQRSimple) {
       test_traj.get_control_dependencies_initial_state_projection(t, Ux);
       test_traj.get_control_dependencies_terminal_state_projection(t, Uz);
       test_traj.get_control_dependencies_affine_term(t, U1);
-      auto temp2 = Ux * (-x0) + U1 + Uz * (-xT);
+      Eigen::VectorXd temp2 = Ux * (-x0) + U1;
+      if (term_dim > 0) {
+        temp2 += Uz * (-xT);
+      }
       std::cout << "u: " << temp2.transpose() << std::endl;
     }
+
+    test_traj.get_dynamics_mult_initial_state_feedback_term(t, Tx);
+    test_traj.get_dynamics_mult_terminal_state_feedback_term(t, Tz);
+    test_traj.get_dynamics_mult_feedforward_term(t, T1);
+
+    Eigen::VectorXd lam = Tx * (-x0) + T1;
+    if (term_dim > 0) {
+      lam += Tz * (-xT);
+    }
+    std::cout << "Lam " << t << " = " << lam.transpose() << std::endl;
+
+    Vxx = test_traj.cost_to_go_hessians_state_state[t];
+    Vzx = test_traj.cost_to_go_hessians_terminal_state[t];
+    Vzz = test_traj.cost_to_go_hessians_terminal_terminal[t];
+    Vx1 = test_traj.cost_to_go_gradients_state[t];
+    Vz1 = test_traj.cost_to_go_gradients_terminal[t];
+    V11 = test_traj.cost_to_go_offsets[t];
+    Eigen::VectorXd lam2 = Vxx * x + Vx1;
+    if (term_dim > 0) {
+      lam2 += Vzx.transpose() * (-xT);
+    }
+    if (t < T - 1) {
+      test_traj.get_running_constraint_mult_initial_state_feedback_term(t, Ux);
+      test_traj.get_running_constraint_mult_terminal_state_feedback_term(t, Uz);
+      test_traj.get_running_constraint_mult_feedforward_term(t, U1);
+
+      Eigen::VectorXd mu = Ux * (-x0) + U1;
+      if (term_dim > 0) {
+        mu += Uz * (-xT);
+      }
+      std::cout << "Mu " << t << " = " << mu.transpose() << std::endl;
+    } else {
+      test_traj.get_terminal_constraint_mult_initial_state_feedback_term(Ux);
+      test_traj.get_terminal_constraint_mult_terminal_state_feedback_term(Uz);
+      test_traj.get_terminal_constraint_mult_feedforward_term(U1);
+      Eigen::VectorXd mu = Ux * (-x0) + U1;
+      if (term_dim > 0){
+        mu += Uz * (-xT);
+      }
+      std::cout << "Mu " << t << " = " << mu.transpose() << std::endl;
+    }
   }
-
   std::cout << "Serial time: " << t1 - t0 << std::endl;
-
 
 //  std::cout << "x0: " << x0 << std::endl;
 //  for (int tt = 0; tt < T; ++tt) {
 //    test_traj.get_dynamics_mult_initial_state_feedback_term(tt, Tx);
-////    test_traj.get_dynamics_mult_terminal_state_feedback_term(tt, Tz);
+//    test_traj.get_dynamics_mult_terminal_state_feedback_term(tt, Tz);
 //    test_traj.get_dynamics_mult_feedforward_term(tt, T1);
 //
-//    Eigen::VectorXd lam = Tx * (-x0) + T1;// + Tz * (-xT);
+//    Eigen::VectorXd lam = Tx * (-x0) + T1;
+//    if (term_dim > 0) {
+//      lam += Tz * (-xT);
+//    }
 //    std::cout << "Lam " << tt << " = " << lam.transpose() << std::endl;
+//
 //    if (tt < T - 1) {
 //      test_traj.get_running_constraint_mult_initial_state_feedback_term(tt, Ux);
-////      test_traj.get_running_constraint_mult_terminal_state_feedback_term(tt, Uz);
+//      test_traj.get_running_constraint_mult_terminal_state_feedback_term(tt, Uz);
 //      test_traj.get_running_constraint_mult_feedforward_term(tt, U1);
 //
-//      Eigen::VectorXd mu = Ux * (-x0) + U1;// + Uz * (-xT);
+//      Eigen::VectorXd mu = Ux * (-x0) + U1;
+//      if (term_dim > 0) {
+//        mu += Uz * (-xT);
+//      }
 //      std::cout << "Mu " << tt << " = " << mu.transpose() << std::endl;
 //    } else {
 //      test_traj.get_terminal_constraint_mult_initial_state_feedback_term(Ux);
-////      test_traj.get_terminal_constraint_mult_terminal_state_feedback_term(Uz);
+//      test_traj.get_terminal_constraint_mult_terminal_state_feedback_term(Uz);
 //      test_traj.get_terminal_constraint_mult_feedforward_term(U1);
-//      Eigen::VectorXd mu = Ux * (-x0) + U1;// + Uz * (-xT);
+//      Eigen::VectorXd mu = Ux * (-x0) + U1;
+//      if (term_dim > 0){
+//        mu += Uz * (-xT);
+//      }
 //      std::cout << "Mu " << tt << " = " << mu.transpose() << std::endl;
 //    }
 //  }

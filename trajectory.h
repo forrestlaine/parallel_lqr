@@ -41,6 +41,7 @@ class Trajectory
       current_points(trajectory_length, Eigen::VectorXd::Zero(state_dimension)),
       current_controls(trajectory_length - 1, Eigen::VectorXd::Zero(control_dimension)),
       num_active_constraints(trajectory_length, 0),
+      num_residual_constraints_to_go(trajectory_length, 0),
       active_running_constraints(trajectory_length - 1, Eigen::Matrix<bool, Eigen::Dynamic, 1>::Zero(running_constraint_dimension)),
       initial_constraint_multiplier(Eigen::VectorXd::Zero(state_dimension)),
       running_constraint_multipliers(trajectory_length - 1, Eigen::VectorXd::Zero(running_constraint_dimension)),
@@ -92,7 +93,13 @@ class Trajectory
       dynamics_mult_feedforward_terms(trajectory_length, Eigen::VectorXd::Zero(state_dimension)),
       initial_constraint_mult_terminal_state_feedback_term(Eigen::MatrixXd::Zero(state_dimension, state_dimension)),
       initial_constraint_mult_initial_state_feedback_term(Eigen::MatrixXd::Zero(state_dimension, state_dimension)),
-      initial_constraint_mult_feedforward_term(Eigen::VectorXd::Zero(state_dimension)) {};
+      initial_constraint_mult_feedforward_term(Eigen::VectorXd::Zero(state_dimension)),
+      cost_to_go_hessians_state_state(trajectory_length, Eigen::MatrixXd::Zero(state_dimension, state_dimension)),
+      cost_to_go_hessians_terminal_terminal(trajectory_length, Eigen::MatrixXd::Zero(state_dimension, state_dimension)),
+      cost_to_go_hessians_terminal_state(trajectory_length, Eigen::MatrixXd::Zero(state_dimension, state_dimension)),
+      cost_to_go_gradients_state(trajectory_length, Eigen::VectorXd::Zero(state_dimension)),
+      cost_to_go_gradients_terminal(trajectory_length, Eigen::VectorXd::Zero(state_dimension)),
+      cost_to_go_offsets(trajectory_length, Eigen::MatrixXd::Zero(1, 1)) {};
 
   ~Trajectory() = default;
 
@@ -236,6 +243,8 @@ class Trajectory
 
   std::vector<unsigned int> num_active_constraints;
   std::vector<Eigen::Matrix<bool, Eigen::Dynamic, 1>> active_running_constraints;
+  std::vector<unsigned int> num_residual_constraints_to_go;
+
   Eigen::VectorXd initial_constraint_multiplier;
   std::vector<Eigen::VectorXd> running_constraint_multipliers;
   Eigen::VectorXd terminal_constraint_multiplier;
@@ -302,6 +311,13 @@ class Trajectory
   Eigen::MatrixXd initial_constraint_mult_terminal_state_feedback_term;
   Eigen::MatrixXd initial_constraint_mult_initial_state_feedback_term;
   Eigen::VectorXd initial_constraint_mult_feedforward_term;
+
+  std::vector<Eigen::MatrixXd> cost_to_go_hessians_state_state;
+  std::vector<Eigen::MatrixXd> cost_to_go_hessians_terminal_terminal;
+  std::vector<Eigen::MatrixXd> cost_to_go_hessians_terminal_state;
+  std::vector<Eigen::VectorXd> cost_to_go_gradients_state;
+  std::vector<Eigen::VectorXd> cost_to_go_gradients_terminal;
+  std::vector<Eigen::MatrixXd> cost_to_go_offsets;
 
 };
 }  // namespace trajectory

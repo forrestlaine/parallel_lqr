@@ -11,7 +11,6 @@ namespace trajectory {
 
 void Trajectory::populate_derivative_terms() {
   // Evaluate derivatives, numerically or analytically, and populate corresponding terms.
-
 }
 
 void Trajectory::compute_feedback_policies() {
@@ -38,9 +37,14 @@ void Trajectory::compute_feedback_policies() {
   Eigen::VectorXd Vz1 = Eigen::MatrixXd::Zero(l, 1);
   Eigen::MatrixXd V11 = Eigen::MatrixXd::Zero(1, 1);
 
-  Eigen::MatrixXd Gx = (this->terminal_constraint_jacobian_state.topLeftCorner(l, n)).eval();
-  Eigen::MatrixXd Gz = (this->terminal_constraint_jacobian_terminal_projection.topLeftCorner(l, l)).eval();
-  Eigen::VectorXd G1 = (this->terminal_constraint_affine_term.head(l)).eval();
+  this->cost_to_go_hessians_state_state[this->trajectory_length - 1] = this->terminal_cost_hessians_state_state.eval();
+  this->cost_to_go_gradients_state[this->trajectory_length - 1] = this->terminal_cost_gradient_state.eval();
+
+  this->num_residual_constraints_to_go[this->trajectory_length - 1] = this->terminal_constraint_dimension;
+
+  Eigen::MatrixXd Gx = this->terminal_constraint_jacobian_state.topLeftCorner(l, n).eval();
+  Eigen::MatrixXd Gz = this->terminal_constraint_jacobian_terminal_projection.topLeftCorner(l, l).eval();
+  Eigen::VectorXd G1 = this->terminal_constraint_affine_term.head(l).eval();
 
   Eigen::MatrixXd Nx = Eigen::MatrixXd::Zero(n, n);
   Eigen::MatrixXd Nu = Eigen::MatrixXd::Zero(n, m);
@@ -52,6 +56,8 @@ void Trajectory::compute_feedback_policies() {
   Eigen::VectorXd *constraint_affine_term_ptr;
 
   for (int t = this->trajectory_length - 2; t >= 0; --t) {
+    this->num_residual_constraints_to_go[t] =
+        this->num_residual_constraints_to_go[t + 1] - m + this->num_active_constraints[t];
 
     constraint_jacobian_state_ptr = &this->running_constraint_jacobians_state[t];
     constraint_jacobian_control_ptr = &this->running_constraint_jacobians_control[t];
@@ -94,6 +100,12 @@ void Trajectory::compute_feedback_policies() {
                                                          this->current_state_feedback_matrices[t],
                                                          this->terminal_state_feedback_matrices[t],
                                                          this->feedforward_controls[t]);
+    this->cost_to_go_hessians_state_state[t] = Vxx.eval();
+    this->cost_to_go_hessians_terminal_state[t] = Vzx.eval();
+    this->cost_to_go_hessians_terminal_terminal[t] = Vzz.eval();
+    this->cost_to_go_gradients_state[t] = Vx1.eval();
+    this->cost_to_go_gradients_terminal[t] = Vz1.eval();
+    this->cost_to_go_offsets[t] = V11.eval();
   }
 //  this->residual_initial_constraint_jacobian_initial_state.topRows(n - j) = Gx;
 //  this->residual_initial_constraint_jacobian_terminal_projection.topLeftCorner(n - j, l) = Gz;
@@ -165,7 +177,7 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
   Nz << Eigen::MatrixXd::Zero(num_active_constraints, this->terminal_constraint_dimension), Gz;
 
   if (constraint_size > 0) {
-    Eigen::JacobiSVD<Eigen::MatrixXd> svd(Nu, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::BDCSVD<Eigen::MatrixXd> svd(Nu, Eigen::ComputeFullU | Eigen::ComputeFullV);
     long constraint_rank = svd.rank();
     if (constraint_rank == 0) {
       Eigen::LDLT<Eigen::MatrixXd> decMuu(Muu);
@@ -265,6 +277,7 @@ void Trajectory::compute_multipliers() {
   const unsigned int n = this->state_dimension;
   const unsigned int l = this->terminal_constraint_dimension;
   const unsigned int T = this->trajectory_length;
+  unsigned int j, nextj;
   Eigen::MatrixXd H, G, Omega, Psi, Sigma, A, B, U, V, W, Y, Q, S, R, Hnext, Anext, Qnext, Snext, LHS, Pproj, Plam;
   Eigen::VectorXd q, r, qnext, P1;
   Eigen::MatrixXd Ex, Ez, Dx, Dz;
@@ -292,157 +305,172 @@ void Trajectory::compute_multipliers() {
     this->terminal_constraint_mult_feedforward_term.head(l) = Eigen::VectorXd::Zero(l);
   }
 
-  Hnext = H;
-  Qnext = Q;
-  qnext = q;
   for (int t = T - 2; t >= 0; --t) {
-    unsigned int j = this->num_active_constraints[t];
-    unsigned int nextj;
+    if (this->num_residual_constraints_to_go[t+1] > 0 or this->num_active_constraints[t] > 0) {
 
-    if ((unsigned int) t < T - 2) {
-      nextj = this->num_active_constraints[t + 1];
-      Hnext = this->running_constraint_jacobians_state[t + 1].topRows(nextj);
-      Anext = this->dynamics_jacobians_state[t + 1];
-      Qnext = this->hamiltonian_hessians_state_state[t + 1];
-      qnext = this->hamiltonian_gradients_state[t + 1];
-      Snext = this->hamiltonian_hessians_control_state[t + 1];
-    } else {
-      nextj = l;
-      Hnext = this->terminal_constraint_jacobian_state.topRows(nextj);
-      Qnext = this->terminal_cost_hessians_state_state;
-      qnext = this->terminal_cost_gradient_state;
-    }
-
-    H = this->running_constraint_jacobians_state[t].topRows(j);
-    G = this->running_constraint_jacobians_control[t].topRows(j);
-    A = this->dynamics_jacobians_state[t];
-    B = this->dynamics_jacobians_control[t];
-    Q = this->hamiltonian_hessians_state_state[t];
-    S = this->hamiltonian_hessians_control_state[t];
-    R = this->hamiltonian_hessians_control_control[t];
-    q = this->hamiltonian_gradients_state[t];
-    r = this->hamiltonian_gradients_control[t];
-
-    Omega = H * H.transpose() + G * G.transpose();
-    Psi = -A * H.transpose() - B * G.transpose();
-    Sigma = A * A.transpose() + B * B.transpose() + Eigen::MatrixXd::Identity(n, n);
-    U = H * Q + G * S;
-    V = -A * Q - B * S;
-    W = H * S.transpose() + G * R;
-    Y = -A * S.transpose() - B * R;
-
-    Dx = V * this->state_dependencies_initial_state_projection[t] +
-        Y * this->control_dependencies_initial_state_projection[t] +
-        Qnext * this->state_dependencies_initial_state_projection[t + 1];
-
-    Dz = V * this->state_dependencies_terminal_state_projection[t].leftCols(l) +
-        Y * this->control_dependencies_terminal_state_projection[t].leftCols(l) +
-        Qnext * this->state_dependencies_terminal_state_projection[t + 1].leftCols(l);
-
-    D1 = V * this->state_dependencies_affine_term[t] +
-        Y * this->control_dependencies_affine_term[t] +
-        Qnext * this->state_dependencies_affine_term[t + 1] + qnext - A * q - B * r;
-
-    if ((unsigned int) t < T - 2) {
-      Dx += (Snext.transpose() * this->control_dependencies_initial_state_projection[t + 1]).eval();
-      Dz += (Snext.transpose() * this->control_dependencies_terminal_state_projection[t + 1].leftCols(l)).eval();
-      D1 += (Snext.transpose() * this->control_dependencies_affine_term[t + 1]).eval();
-    }
-    Ex = U * this->state_dependencies_initial_state_projection[t] +
-        W * this->control_dependencies_initial_state_projection[t];
-    Ez = U * this->state_dependencies_terminal_state_projection[t].leftCols(l) +
-        W * this->control_dependencies_terminal_state_projection[t].leftCols(l);
-    E1 = U * this->state_dependencies_affine_term[t] +
-        W * this->control_dependencies_affine_term[t] + H * q + G * r;
-    LHS.resize(j + n, j + n);
-    Plam.resize(j + n, n);
-    Pproj.resize(j + n, l + n);
-    P1.resize(j + n);
-
-    if ((unsigned int) t < T - 2) {
-      Sigma =
-          (Sigma + Hnext.transpose() * this->running_constraint_mult_dynamics_mult_feedback_terms[t + 1].topRows(nextj)
-              - Anext.transpose() * this->dynamics_mult_dynamics_mult_feedback_terms[t + 2]).eval();
-      Pproj << Ex,
-          Ez,
-          Dx + (Hnext.transpose() * this->running_constraint_mult_initial_state_feedback_terms[t + 1].topRows(nextj)
-              - Anext.transpose() * this->dynamics_mult_initial_state_feedback_terms[t + 2]),
-          Dz + (Hnext.transpose()
-              * this->running_constraint_mult_terminal_state_feedback_terms[t + 1].topLeftCorner(nextj, l)
-              - Anext.transpose() * this->dynamics_mult_terminal_state_feedback_terms[t + 2].leftCols(l));
-      P1 << E1, D1 + (Hnext.transpose() * this->running_constraint_mult_feedforward_terms[t + 1].topRows(nextj)
-          - Anext.transpose() * this->dynamics_mult_feedforward_terms[t + 2]);
-    } else {
-      Sigma =
-          (Sigma + Hnext.transpose() * this->terminal_constraint_mult_dynamics_mult_feedback_term.topRows(l)).eval();
-      Pproj << Ex,
-          Ez,
-          Dx + Hnext.transpose() * this->terminal_constraint_mult_initial_state_feedback_term.topRows(l),
-          Dz + Hnext.transpose() * this->terminal_constraint_mult_terminal_state_feedback_term.topLeftCorner(l, l);
-      P1 << E1, D1 + Hnext.transpose() * this->terminal_constraint_mult_feedforward_term.head(l);
-    }
-
-    LHS << Omega, Psi.transpose(), Psi, Sigma;
-    Plam << H, -A;
-    decomp.compute(-LHS);
-    Pproj = (decomp.solve(Pproj)).eval();
-    Plam = (decomp.solve(Plam)).eval();
-    P1 = (decomp.solve(P1)).eval();
-    this->running_constraint_mult_initial_state_feedback_terms[t].topRows(j) = Pproj.block(0, 0, j, n);
-    this->running_constraint_mult_terminal_state_feedback_terms[t].topLeftCorner(j, l) = Pproj.block(0, n, j, l);
-    this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j) = Plam.topRows(j);
-    this->running_constraint_mult_feedforward_terms[t].head(j) = P1.head(j);
-    this->dynamics_mult_initial_state_feedback_terms[t + 1] = Pproj.block(j, 0, n, n);
-    this->dynamics_mult_terminal_state_feedback_terms[t + 1].leftCols(l) = Pproj.block(j, n, n, l);
-    this->dynamics_mult_dynamics_mult_feedback_terms[t + 1] = Plam.bottomRows(n);
-    this->dynamics_mult_feedforward_terms[t + 1] = P1.tail(n);
-  }
-  unsigned int j = this->num_active_constraints[0];
-  Q = this->hamiltonian_hessians_state_state[0];
-  S = this->hamiltonian_hessians_control_state[0];
-  H = this->running_constraint_jacobians_state[0].topRows(j);
-  A = this->dynamics_jacobians_state[0];
-  q = this->hamiltonian_gradients_state[0];
-  Dx = Q * this->state_dependencies_initial_state_projection[0] +
-      S.transpose() * this->control_dependencies_initial_state_projection[0] +
-      H.transpose() * this->running_constraint_mult_initial_state_feedback_terms[0].topRows(j)
-      - A.transpose() * this->dynamics_mult_initial_state_feedback_terms[1];
-  Dz = Q * this->state_dependencies_terminal_state_projection[0] +
-      S.transpose() * this->control_dependencies_terminal_state_projection[0].leftCols(l) +
-      H.transpose() * this->running_constraint_mult_terminal_state_feedback_terms[0].topLeftCorner(j, l)
-      - A.transpose() * this->dynamics_mult_terminal_state_feedback_terms[1].leftCols(l);
-  D1 = Q * this->state_dependencies_affine_term[0] + S.transpose() * this->control_dependencies_affine_term[0] + q +
-      H.transpose() * this->running_constraint_mult_feedforward_terms[0].head(j)
-      - A.transpose() * this->dynamics_mult_feedforward_terms[1];
-  Plam = Eigen::MatrixXd::Identity(n, n)
-      + H.transpose() * this->running_constraint_mult_dynamics_mult_feedback_terms[0].topRows(j)
-      - A.transpose() * this->dynamics_mult_dynamics_mult_feedback_terms[1];
-  decomp.compute(-Plam);
-  this->dynamics_mult_initial_state_feedback_terms[0] = decomp.solve(Dx);
-  this->dynamics_mult_terminal_state_feedback_terms[0].leftCols(l) = decomp.solve(Dz);
-  this->dynamics_mult_feedforward_terms[0] = decomp.solve(D1);
-  for (unsigned int t = 0; t < T - 1; ++t) {
-    if (t < T - 1) {
       j = this->num_active_constraints[t];
+
+      if ((unsigned int) t < T - 2) {
+        nextj = this->num_active_constraints[t + 1];
+        Hnext = this->running_constraint_jacobians_state[t + 1].topRows(nextj);
+        Anext = this->dynamics_jacobians_state[t + 1];
+        Qnext = this->hamiltonian_hessians_state_state[t + 1];
+        qnext = this->hamiltonian_gradients_state[t + 1];
+        Snext = this->hamiltonian_hessians_control_state[t + 1];
+      } else {
+        nextj = l;
+        Hnext = this->terminal_constraint_jacobian_state.topRows(nextj);
+        Qnext = this->terminal_cost_hessians_state_state;
+        qnext = this->terminal_cost_gradient_state;
+      }
+
+      H = this->running_constraint_jacobians_state[t].topRows(j);
+      G = this->running_constraint_jacobians_control[t].topRows(j);
+      A = this->dynamics_jacobians_state[t];
+      B = this->dynamics_jacobians_control[t];
+      Q = this->hamiltonian_hessians_state_state[t];
+      S = this->hamiltonian_hessians_control_state[t];
+      R = this->hamiltonian_hessians_control_control[t];
+      q = this->hamiltonian_gradients_state[t];
+      r = this->hamiltonian_gradients_control[t];
+
+      Omega = H * H.transpose() + G * G.transpose();
+      Psi = -A * H.transpose() - B * G.transpose();
+      Sigma = A * A.transpose() + B * B.transpose() + Eigen::MatrixXd::Identity(n, n);
+      U = H * Q + G * S;
+      V = -A * Q - B * S;
+      W = H * S.transpose() + G * R;
+      Y = -A * S.transpose() - B * R;
+
+      Dx = V * this->state_dependencies_initial_state_projection[t] +
+          Y * this->control_dependencies_initial_state_projection[t] +
+          Qnext * this->state_dependencies_initial_state_projection[t + 1];
+
+      Dz = V * this->state_dependencies_terminal_state_projection[t].leftCols(l) +
+          Y * this->control_dependencies_terminal_state_projection[t].leftCols(l) +
+          Qnext * this->state_dependencies_terminal_state_projection[t + 1].leftCols(l);
+
+      D1 = V * this->state_dependencies_affine_term[t] +
+          Y * this->control_dependencies_affine_term[t] +
+          Qnext * this->state_dependencies_affine_term[t + 1] + qnext - A * q - B * r;
+
+      Ex = U * this->state_dependencies_initial_state_projection[t] +
+          W * this->control_dependencies_initial_state_projection[t];
+      Ez = U * this->state_dependencies_terminal_state_projection[t].leftCols(l) +
+          W * this->control_dependencies_terminal_state_projection[t].leftCols(l);
+      E1 = U * this->state_dependencies_affine_term[t] +
+          W * this->control_dependencies_affine_term[t] + H * q + G * r;
+
+      LHS.resize(j + n, j + n);
+      Plam.resize(j + n, n);
+      Pproj.resize(j + n, l + n);
+      P1.resize(j + n);
+
+      if ((unsigned int) t < T - 2) {
+        Sigma += (Hnext.transpose() * this->running_constraint_mult_dynamics_mult_feedback_terms[t + 1].topRows(nextj)
+            - Anext.transpose() * this->dynamics_mult_dynamics_mult_feedback_terms[t + 2]).eval();
+        Dx += (Hnext.transpose() * this->running_constraint_mult_initial_state_feedback_terms[t + 1].topRows(nextj)
+            - Anext.transpose() * this->dynamics_mult_initial_state_feedback_terms[t + 2]
+            + Snext.transpose() * this->control_dependencies_initial_state_projection[t + 1]).eval();
+        Dz += (Hnext.transpose()
+            * this->running_constraint_mult_terminal_state_feedback_terms[t + 1].topLeftCorner(nextj, l)
+            - Anext.transpose() * this->dynamics_mult_terminal_state_feedback_terms[t + 2].leftCols(l)
+            + Snext.transpose() * this->control_dependencies_terminal_state_projection[t + 1].leftCols(l)).eval();
+        D1 += (Hnext.transpose() * this->running_constraint_mult_feedforward_terms[t + 1].topRows(nextj)
+            - Anext.transpose() * this->dynamics_mult_feedforward_terms[t + 2]
+            + Snext.transpose() * this->control_dependencies_affine_term[t + 1]).eval();
+      } else {
+        Sigma += (Hnext.transpose() * this->terminal_constraint_mult_dynamics_mult_feedback_term.topRows(l)).eval();
+        Dx += (Hnext.transpose() * this->terminal_constraint_mult_initial_state_feedback_term.topRows(l)).eval();
+        Dz +=
+            (Hnext.transpose() * this->terminal_constraint_mult_terminal_state_feedback_term.topLeftCorner(l, l)).eval();
+        D1 += (Hnext.transpose() * this->terminal_constraint_mult_feedforward_term.head(l)).eval();
+      }
+      Pproj << Ex, Ez, Dx, Dz;
+      P1 << E1, D1;
+      LHS << Omega, Psi.transpose(), Psi, Sigma;
+      Plam << H, -A;
+      decomp.compute(-LHS);
+      Pproj = (decomp.solve(Pproj)).eval();
+      Plam = (decomp.solve(Plam)).eval();
+      P1 = (decomp.solve(P1)).eval();
+      this->running_constraint_mult_initial_state_feedback_terms[t].topRows(j) = Pproj.block(0, 0, j, n);
+      this->running_constraint_mult_terminal_state_feedback_terms[t].topLeftCorner(j, l) = Pproj.block(0, n, j, l);
+      this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j) = Plam.topRows(j);
+      this->running_constraint_mult_feedforward_terms[t].head(j) = P1.head(j);
+      this->dynamics_mult_initial_state_feedback_terms[t + 1] = Pproj.block(j, 0, n, n);
+      this->dynamics_mult_terminal_state_feedback_terms[t + 1].leftCols(l) = Pproj.block(j, n, n, l);
+      this->dynamics_mult_dynamics_mult_feedback_terms[t + 1] = Plam.bottomRows(n);
+      this->dynamics_mult_feedforward_terms[t + 1] = P1.tail(n);
     } else {
-      j = l;
+      Eigen::MatrixXd Vxx, Vzx;
+      Eigen::VectorXd Vx1;
+      Vxx = this->cost_to_go_hessians_state_state[t+1];
+      Vzx = this->cost_to_go_hessians_terminal_state[t+1];
+      Vx1 = this->cost_to_go_gradients_state[t+1];
+      this->dynamics_mult_initial_state_feedback_terms[t+1] = -(Vxx * this->state_dependencies_initial_state_projection[t+1]);
+      this->dynamics_mult_terminal_state_feedback_terms[t+1] = -(Vzx.transpose() + Vxx * this->state_dependencies_terminal_state_projection[t+1]);
+      this->dynamics_mult_feedforward_terms[t+1] = -(Vx1 + Vxx * this->state_dependencies_affine_term[t+1]);
     }
-    this->running_constraint_mult_initial_state_feedback_terms[t].topRows(j) +=
-        (this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j)
-            * this->dynamics_mult_initial_state_feedback_terms[t]).eval();
-    this->running_constraint_mult_terminal_state_feedback_terms[t].topLeftCorner(j, l) +=
-        (this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j)
-            * this->dynamics_mult_terminal_state_feedback_terms[t].leftCols(l)).eval();
-    this->running_constraint_mult_feedforward_terms[t].topRows(j) +=
-        (this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j)
-            * this->dynamics_mult_feedforward_terms[t]).eval();
-    this->dynamics_mult_initial_state_feedback_terms[t + 1] += (this->dynamics_mult_dynamics_mult_feedback_terms[t + 1]
-        * this->dynamics_mult_initial_state_feedback_terms[t]).eval();
-    this->dynamics_mult_terminal_state_feedback_terms[t + 1].leftCols(l) +=
-        (this->dynamics_mult_dynamics_mult_feedback_terms[t + 1]
-            * this->dynamics_mult_terminal_state_feedback_terms[t].leftCols(l)).eval();
-    this->dynamics_mult_feedforward_terms[t + 1] +=
-        (this->dynamics_mult_dynamics_mult_feedback_terms[t + 1] * this->dynamics_mult_feedforward_terms[t]).eval();
+  }
+  if (this->num_residual_constraints_to_go[0] > 0) {
+    j = this->num_active_constraints[0];
+    Q = this->hamiltonian_hessians_state_state[0];
+    S = this->hamiltonian_hessians_control_state[0];
+    H = this->running_constraint_jacobians_state[0].topRows(j);
+    A = this->dynamics_jacobians_state[0];
+    q = this->hamiltonian_gradients_state[0];
+    Dx = Q * this->state_dependencies_initial_state_projection[0] +
+        S.transpose() * this->control_dependencies_initial_state_projection[0] +
+        H.transpose() * this->running_constraint_mult_initial_state_feedback_terms[0].topRows(j)
+        - A.transpose() * this->dynamics_mult_initial_state_feedback_terms[1];
+    Dz = Q * this->state_dependencies_terminal_state_projection[0] +
+        S.transpose() * this->control_dependencies_terminal_state_projection[0].leftCols(l) +
+        H.transpose() * this->running_constraint_mult_terminal_state_feedback_terms[0].topLeftCorner(j, l)
+        - A.transpose() * this->dynamics_mult_terminal_state_feedback_terms[1].leftCols(l);
+    D1 = Q * this->state_dependencies_affine_term[0] + S.transpose() * this->control_dependencies_affine_term[0] + q +
+        H.transpose() * this->running_constraint_mult_feedforward_terms[0].head(j)
+        - A.transpose() * this->dynamics_mult_feedforward_terms[1];
+    Plam = Eigen::MatrixXd::Identity(n, n)
+        + H.transpose() * this->running_constraint_mult_dynamics_mult_feedback_terms[0].topRows(j)
+        - A.transpose() * this->dynamics_mult_dynamics_mult_feedback_terms[1];
+    decomp.compute(-Plam);
+    this->dynamics_mult_initial_state_feedback_terms[0] = decomp.solve(Dx);
+    this->dynamics_mult_terminal_state_feedback_terms[0].leftCols(l) = decomp.solve(Dz);
+    this->dynamics_mult_feedforward_terms[0] = decomp.solve(D1);
+  } else {
+    Eigen::MatrixXd Vxx, Vzx;
+    Eigen::VectorXd Vx1;
+    Vxx = this->cost_to_go_hessians_state_state[0];
+    Vzx = this->cost_to_go_hessians_terminal_state[0];
+    Vx1 = this->cost_to_go_gradients_state[0];
+    this->dynamics_mult_initial_state_feedback_terms[0] = -(Vxx * this->state_dependencies_initial_state_projection[0]);
+    this->dynamics_mult_terminal_state_feedback_terms[0] = -(Vzx.transpose() + Vxx * this->state_dependencies_terminal_state_projection[0]);
+    this->dynamics_mult_feedforward_terms[0] = -(Vx1 + Vxx * this->state_dependencies_affine_term[0]);
+  };
+
+  // Forward solve for Multiplier dependencies
+  for (unsigned int t = 0; t < T - 1; ++t) {
+    j = (t < T - 1) ? this->num_active_constraints[t] : l;
+    if (this->num_residual_constraints_to_go[t+1] > 0 or this->num_active_constraints[t] > 0) {
+      this->running_constraint_mult_initial_state_feedback_terms[t].topRows(j) +=
+          (this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j)
+              * this->dynamics_mult_initial_state_feedback_terms[t]).eval();
+      this->running_constraint_mult_terminal_state_feedback_terms[t].topLeftCorner(j, l) +=
+          (this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j)
+              * this->dynamics_mult_terminal_state_feedback_terms[t].leftCols(l)).eval();
+      this->running_constraint_mult_feedforward_terms[t].topRows(j) +=
+          (this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j)
+              * this->dynamics_mult_feedforward_terms[t]).eval();
+      this->dynamics_mult_initial_state_feedback_terms[t + 1] +=
+          (this->dynamics_mult_dynamics_mult_feedback_terms[t + 1]
+              * this->dynamics_mult_initial_state_feedback_terms[t]).eval();
+      this->dynamics_mult_terminal_state_feedback_terms[t + 1].leftCols(l) +=
+          (this->dynamics_mult_dynamics_mult_feedback_terms[t + 1]
+              * this->dynamics_mult_terminal_state_feedback_terms[t].leftCols(l)).eval();
+      this->dynamics_mult_feedforward_terms[t + 1] +=
+          (this->dynamics_mult_dynamics_mult_feedback_terms[t + 1] * this->dynamics_mult_feedforward_terms[t]).eval();
+    }
   }
   this->terminal_constraint_mult_initial_state_feedback_term.topRows(l) +=
       (this->terminal_constraint_mult_dynamics_mult_feedback_term.topRows(l)
@@ -453,7 +481,6 @@ void Trajectory::compute_multipliers() {
   this->terminal_constraint_mult_feedforward_term.head(l) +=
       (this->terminal_constraint_mult_dynamics_mult_feedback_term.topRows(l)
           * this->dynamics_mult_feedforward_terms[T - 1]).eval();
-
 }
 
 void Trajectory::compute_state_control_dependencies() {
