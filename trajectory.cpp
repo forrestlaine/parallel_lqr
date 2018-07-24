@@ -386,10 +386,22 @@ void Trajectory::compute_multipliers() {
             (Hnext.transpose() * this->terminal_constraint_mult_terminal_state_feedback_term.topLeftCorner(l, l)).eval();
         D1 += (Hnext.transpose() * this->terminal_constraint_mult_feedforward_term.head(l)).eval();
       }
-      Pproj << Ex, Ez, Dx, Dz;
-      P1 << E1, D1;
-      LHS << Omega, Psi.transpose(), Psi, Sigma;
-      Plam << H, -A;
+      Pproj.topLeftCorner(j, n) = Ex; 
+      Pproj.topRightCorner(j, l) = Ez;
+      Pproj.bottomLeftCorner(n, n) = Dx;
+      Pproj.bottomRightCorner(n, l) = Dz;
+      //Pproj << Ex, Ez, Dx, Dz;
+      P1.head(j) = E1;
+      P1.tail(n) = D1;
+      //P1 << E1, D1;
+      LHS.topLeftCorner(j, j) = Omega;
+      LHS.topRightCorner(j, n) = Psi.transpose();
+      LHS.bottomLeftCorner(n, j) = Psi;
+      LHS.bottomRightCorner(n, n) = Sigma;
+      //LHS << Omega, Psi.transpose(), Psi, Sigma;
+      Plam.topRows(j) = H;
+      Plam.bottomRows(n) = -A;
+      //Plam << H, -A;
       decomp.compute(-LHS);
       Pproj = (decomp.solve(Pproj)).eval();
       Plam = (decomp.solve(Plam)).eval();

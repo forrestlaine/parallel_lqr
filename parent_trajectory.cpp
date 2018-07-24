@@ -92,7 +92,7 @@ void ParentTrajectory::initializeChildTrajectories() {
 }
 
 void ParentTrajectory::performChildTrajectoryCalculations() {
-  #pragma omp parallel for schedule(static)
+  #pragma omp parallel for num_threads(this->num_child_trajectories) 
   for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
     this->child_trajectories[t].populate_derivative_terms();
     this->child_trajectories[t].compute_feedback_policies();
