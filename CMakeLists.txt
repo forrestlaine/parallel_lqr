@@ -40,7 +40,7 @@ endif(OPENMP_FOUND)
 #endif(GTEST_FOUND)
 
 
-add_library(motorboat SHARED trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
+add_library(motorboat SHARED trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h)
 add_executable(test_trajectory test_trajectory.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
 add_executable(run_parent_traj run_parent_traj.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
 target_link_libraries(test_trajectory gtest gtest_main)
