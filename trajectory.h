@@ -9,8 +9,13 @@
 #include "Eigen3/Eigen/Dense"
 #include "gtest/gtest.h"
 
-namespace trajectory {
+#include "dynamics.h"
+#include "running_constraint.h"
+#include "endpoint_constraint.h"
+#include "running_cost.h"
+#include "terminal_cost.h"
 
+namespace trajectory {
 
 class Trajectory {
 
@@ -19,12 +24,12 @@ class Trajectory {
              unsigned int state_dimension,
              unsigned int control_dimension,
              unsigned int running_constraint_dimension,
-             const std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> *dynamics,
-             const std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> *running_constraint,
-             const std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> *final_constraint,
-             const std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> *initial_constraint,
-             const std::function<double(const Eigen::VectorXd*, const Eigen::VectorXd*)> *running_cost,
-             const std::function<double(const Eigen::VectorXd*)> *terminal_cost):
+             const dynamics::Dynamics *dynamics,
+             const running_constraint::RunningConstraint *running_constraint,
+             const endpoint_constraint::EndPointConstraint *terminal_constraint,
+             const endpoint_constraint::EndPointConstraint *initial_constraint,
+             const running_cost::RunningCost *running_cost,
+             const terminal_cost::TerminalCost *terminal_cost):
       trajectory_length(trajectory_length),
       state_dimension(state_dimension),
       control_dimension(control_dimension),
@@ -33,7 +38,7 @@ class Trajectory {
       terminal_constraint_dimension(state_dimension),
       dynamics(*dynamics),
       running_constraint(*running_constraint),
-      final_constraint(*final_constraint),
+      terminal_constraint(*terminal_constraint),
       initial_constraint(*initial_constraint),
       running_cost(*running_cost),
       terminal_cost(*terminal_cost),
@@ -231,12 +236,12 @@ class Trajectory {
   const unsigned int running_constraint_dimension;
   unsigned int terminal_constraint_dimension;
 
-  std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> dynamics;
-  std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> running_constraint;
-  std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> final_constraint;
-  std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> initial_constraint;
-  std::function<double(const Eigen::VectorXd*, const Eigen::VectorXd*)> running_cost;
-  std::function<double(const Eigen::VectorXd*)> terminal_cost;
+  dynamics::Dynamics dynamics;
+  running_constraint::RunningConstraint running_constraint;
+  endpoint_constraint::EndPointConstraint terminal_constraint;
+  endpoint_constraint::EndPointConstraint initial_constraint;
+  running_cost::RunningCost running_cost;
+  terminal_cost::TerminalCost terminal_cost;
 
   std::vector<Eigen::VectorXd> current_points;
   std::vector<Eigen::VectorXd> current_controls;
