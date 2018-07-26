@@ -9,8 +9,9 @@ namespace running_constraint {
 
 void RunningConstraint::eval_constraint(const Eigen::VectorXd *x,
                                         const Eigen::VectorXd *u,
+                                        int t,
                                         Eigen::VectorXd &h) {
-  this->constraint(x, u, h);
+  this->constraint(x, u, t, h);
 }
 
 
@@ -26,21 +27,23 @@ long RunningConstraint::eval_active_indices(const Eigen::VectorXd *constraint,
 
 void RunningConstraint::eval_constraint_jacobian_state(const Eigen::VectorXd *x,
                                                        const Eigen::VectorXd *u,
+                                                       int t,
                                                        Eigen::MatrixXd &Hx) {
   if (this->analytic_jacobians_given) {
-    this->constraint_jacobian_state(x, u, Hx);
+    this->constraint_jacobian_state(x, u, t, Hx);
   } else {
-    numerical_gradient::numerical_jacobian_first_input(&(this->constraint), x, u, Hx);
+    numerical_gradient::numerical_jacobian_first_input(&(this->constraint), x, u, t, Hx);
   }
 }
 
 void RunningConstraint::eval_constraint_jacobian_control(const Eigen::VectorXd *x,
                                                          const Eigen::VectorXd *u,
+                                                         int t,
                                                          Eigen::MatrixXd &Hu) {
   if (this->analytic_jacobians_given) {
-    this->constraint_jacobian_control(x, u, Hu);
+    this->constraint_jacobian_control(x, u, t, Hu);
   } else {
-    numerical_gradient::numerical_jacobian_second_input(&(this->constraint), x, u, Hu);
+    numerical_gradient::numerical_jacobian_second_input(&(this->constraint), x, u, t, Hu);
   }
 }
 

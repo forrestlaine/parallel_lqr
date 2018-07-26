@@ -8,12 +8,12 @@
 namespace endpoint_constraint {
 
 void EndPointConstraint::eval_constraint(const Eigen::VectorXd *x,
-                     Eigen::VectorXd &h) {
+                                         Eigen::VectorXd &h) {
   this->constraint(x, h);
 }
 
 long EndPointConstraint::eval_active_indices(const Eigen::VectorXd *constraint,
-                         Eigen::Matrix<bool, Eigen::Dynamic, 1> &active_indices) {
+                                             Eigen::Matrix<bool, Eigen::Dynamic, 1> &active_indices) {
   const double tol = 1e-8;
   const long n = (*constraint).size();
   for (int i = 0; i < n; ++i) {
@@ -23,7 +23,7 @@ long EndPointConstraint::eval_active_indices(const Eigen::VectorXd *constraint,
 }
 
 void EndPointConstraint::eval_constraint_jacobian(const Eigen::VectorXd *x,
-                              Eigen::MatrixXd &Hx) {
+                                                  Eigen::MatrixXd &Hx) {
   if (this->analytic_jacobian_given) {
     this->constraint_jacobian(x, Hx);
   } else {

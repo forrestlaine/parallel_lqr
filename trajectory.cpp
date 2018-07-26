@@ -5,19 +5,91 @@
 #include "trajectory.h"
 
 #include <iostream>
+#include <algorithm>
 #include <vector>
 
 namespace trajectory {
 
 void Trajectory::populate_derivative_terms() {
   // Evaluate derivatives, numerically or analytically, and populate corresponding terms.
+  Eigen::VectorXd temp_constraint;
+  Eigen::MatrixXd temp_jacobian_1, temp_jacobian_2;
+  Eigen::VectorXd temp_gradient_1, temp_gradient_2;
+  Eigen::MatrixXd temp_hessian_11, temp_hessian_21, temp_hessian_22;
+  for (int t = 0; t < this->trajectory_length - 1; ++t) {
+    this->dynamics.eval_dynamics_jacobian_state(&this->current_points[t],
+                                                &this->current_controls[t],
+                                                this->dynamics_jacobians_state[t]);
+    this->dynamics.eval_dynamics_jacobian_control(&this->current_points[t],
+                                                  &this->current_controls[t],
+                                                  this->dynamics_jacobians_control[t]);
+    this->dynamics.eval_dynamics(&this->current_points[t], &this->current_controls[t], this->dynamics_affine_terms[t]);
+
+    this->running_constraint.eval_constraint(&this->current_points[t], &this->current_controls[t], temp_constraint);
+    this->num_active_constraints[t] = (unsigned int) this->running_constraint.eval_active_indices(&temp_constraint,
+                                                                                                  this->active_running_constraints[t]);
+    this->running_constraint.eval_constraint_jacobian_state(&this->current_points[t],
+                                                            &this->current_controls[t],
+                                                            temp_jacobian_1);
+    this->running_constraint.eval_constraint_jacobian_control(&this->current_points[t],
+                                                              &this->current_controls[t],
+                                                              temp_jacobian_2);
+
+    for (int k = 0, d = 0; k < this->running_constraint.get_constraint_dimension(); ++k) {
+      if (this->active_running_constraints[t](k)) {
+        this->running_constraint_affine_terms[t](d) = temp_constraint(k);
+        this->running_constraint_jacobians_state[t].row(d) = temp_jacobian_1.row(k);
+        this->running_constraint_jacobians_control[t].row(d) = temp_jacobian_2.row(k);
+        ++d;
+      }
+    }
+
+    this->running_cost.eval_cost_hessian_state_state(&this->current_points[t],
+                                                     &this->current_controls[t],
+                                                     this->hamiltonian_hessians_state_state[t]);
+    this->running_cost.eval_cost_hessian_control_state(&this->current_points[t],
+                                                       &this->current_controls[t],
+                                                       this->hamiltonian_hessians_control_state[t]);
+    this->running_cost.eval_cost_hessian_control_control(&this->current_points[t],
+                                                         &this->current_controls[t],
+                                                         this->hamiltonian_hessians_control_control[t]);
+    this->running_cost.eval_cost_gradient_state(&this->current_points[t],
+                                                &this->current_controls[t],
+                                                this->hamiltonian_gradients_state[t]);
+    this->running_cost.eval_cost_gradient_control(&this->current_points[t],
+                                                  &this->current_controls[t],
+                                                  this->hamiltonian_gradients_control[t]);
+
+  }
+  int t = this->trajectory_length - 1;
+  if (not this->terminal_constraint.is_implicit()) {
+    this->terminal_constraint.eval_constraint(&this->current_points[t], temp_constraint);
+    this->terminal_constraint.eval_constraint_jacobian(&this->current_points[t], temp_jacobian_1);
+    this->terminal_constraint_dimension = (unsigned int) this->terminal_constraint.eval_active_indices(&temp_constraint,
+                                                                                                       this->active_terminal_constraints);
+  }
+
+  const Eigen::MatrixXd I = Eigen::MatrixXd::Identity(this->terminal_constraint.get_constraint_dimension(),
+                                                      this->terminal_constraint.get_constraint_dimension());
+  for (int k = 0, d = 0; k < this->terminal_constraint.get_constraint_dimension(); ++k) {
+    if (this->terminal_constraint.is_implicit()) {
+      this->terminal_constraint_jacobian_state.row(d) = I.row(k);
+      this->terminal_constraint_jacobian_terminal_projection.row(d) = I.row(k);
+      ++d;
+    } else {
+      if (this->active_terminal_constraints(k)) {
+        this->terminal_constraint_affine_term(d) = temp_constraint(k);
+        this->terminal_constraint_jacobian_state.row(d) = temp_jacobian_1.row(k);
+        ++d;
+      }
+    }
+  }
 }
 
 void Trajectory::compute_feedback_policies() {
   const unsigned int n = this->state_dimension;
   const unsigned int m = this->control_dimension;
   const unsigned int l = this->terminal_constraint_dimension;
-//  const unsigned int j = this->initial_constraint_dimension;
 
   Eigen::MatrixXd Mxx = Eigen::MatrixXd::Zero(n, n);
   Eigen::MatrixXd Muu = Eigen::MatrixXd::Zero(m, m);
@@ -57,7 +129,9 @@ void Trajectory::compute_feedback_policies() {
 
   for (int t = this->trajectory_length - 2; t >= 0; --t) {
     this->num_residual_constraints_to_go[t] =
-        this->num_residual_constraints_to_go[t + 1] - m + this->num_active_constraints[t];
+        std::max((int) (this->num_residual_constraints_to_go[t + 1] - m + this->num_active_constraints[t]), 0);
+    this->need_dynamics_mult[t] =
+        (this->num_residual_constraints_to_go[t + 1] > 0 and this->num_residual_constraints_to_go[t] == 0);
 
     constraint_jacobian_state_ptr = &this->running_constraint_jacobians_state[t];
     constraint_jacobian_control_ptr = &this->running_constraint_jacobians_control[t];
@@ -107,6 +181,7 @@ void Trajectory::compute_feedback_policies() {
     this->cost_to_go_gradients_terminal[t] = Vz1.eval();
     this->cost_to_go_offsets[t] = V11.eval();
   }
+  this->need_dynamics_mult[0] = true;
 //  this->residual_initial_constraint_jacobian_initial_state.topRows(n - j) = Gx;
 //  this->residual_initial_constraint_jacobian_terminal_projection.topLeftCorner(n - j, l) = Gz;
 //  this->residual_initial_constraint_affine_term.head(n - j) = G1;
@@ -306,7 +381,7 @@ void Trajectory::compute_multipliers() {
   }
 
   for (int t = T - 2; t >= 0; --t) {
-    if (this->num_residual_constraints_to_go[t+1] > 0 or this->num_active_constraints[t] > 0) {
+    if (this->num_residual_constraints_to_go[t + 1] > 0 or this->num_active_constraints[t] > 0) {
 
       j = this->num_active_constraints[t];
 
@@ -383,10 +458,11 @@ void Trajectory::compute_multipliers() {
         Sigma += (Hnext.transpose() * this->terminal_constraint_mult_dynamics_mult_feedback_term.topRows(l)).eval();
         Dx += (Hnext.transpose() * this->terminal_constraint_mult_initial_state_feedback_term.topRows(l)).eval();
         Dz +=
-            (Hnext.transpose() * this->terminal_constraint_mult_terminal_state_feedback_term.topLeftCorner(l, l)).eval();
+            (Hnext.transpose()
+                * this->terminal_constraint_mult_terminal_state_feedback_term.topLeftCorner(l, l)).eval();
         D1 += (Hnext.transpose() * this->terminal_constraint_mult_feedforward_term.head(l)).eval();
       }
-      Pproj.topLeftCorner(j, n) = Ex; 
+      Pproj.topLeftCorner(j, n) = Ex;
       Pproj.topRightCorner(j, l) = Ez;
       Pproj.bottomLeftCorner(n, n) = Dx;
       Pproj.bottomRightCorner(n, l) = Dz;
@@ -414,15 +490,17 @@ void Trajectory::compute_multipliers() {
       this->dynamics_mult_terminal_state_feedback_terms[t + 1].leftCols(l) = Pproj.block(j, n, n, l);
       this->dynamics_mult_dynamics_mult_feedback_terms[t + 1] = Plam.bottomRows(n);
       this->dynamics_mult_feedforward_terms[t + 1] = P1.tail(n);
-    } else {
+    } else if (this->need_dynamics_mult[t+1]) {
       Eigen::MatrixXd Vxx, Vzx;
       Eigen::VectorXd Vx1;
-      Vxx = this->cost_to_go_hessians_state_state[t+1];
-      Vzx = this->cost_to_go_hessians_terminal_state[t+1];
-      Vx1 = this->cost_to_go_gradients_state[t+1];
-      this->dynamics_mult_initial_state_feedback_terms[t+1] = -(Vxx * this->state_dependencies_initial_state_projection[t+1]);
-      this->dynamics_mult_terminal_state_feedback_terms[t+1] = -(Vzx.transpose() + Vxx * this->state_dependencies_terminal_state_projection[t+1]);
-      this->dynamics_mult_feedforward_terms[t+1] = -(Vx1 + Vxx * this->state_dependencies_affine_term[t+1]);
+      Vxx = this->cost_to_go_hessians_state_state[t + 1];
+      Vzx = this->cost_to_go_hessians_terminal_state[t + 1];
+      Vx1 = this->cost_to_go_gradients_state[t + 1];
+      this->dynamics_mult_initial_state_feedback_terms[t + 1] =
+          -(Vxx * this->state_dependencies_initial_state_projection[t + 1]);
+      this->dynamics_mult_terminal_state_feedback_terms[t + 1] =
+          -(Vzx.transpose() + Vxx * this->state_dependencies_terminal_state_projection[t + 1]);
+      this->dynamics_mult_feedforward_terms[t + 1] = -(Vx1 + Vxx * this->state_dependencies_affine_term[t + 1]);
     }
   }
   if (this->num_residual_constraints_to_go[0] > 0) {
@@ -450,21 +528,22 @@ void Trajectory::compute_multipliers() {
     this->dynamics_mult_initial_state_feedback_terms[0] = decomp.solve(Dx);
     this->dynamics_mult_terminal_state_feedback_terms[0].leftCols(l) = decomp.solve(Dz);
     this->dynamics_mult_feedforward_terms[0] = decomp.solve(D1);
-  } else {
+  } else if (this->need_dynamics_mult[0]) {
     Eigen::MatrixXd Vxx, Vzx;
     Eigen::VectorXd Vx1;
     Vxx = this->cost_to_go_hessians_state_state[0];
     Vzx = this->cost_to_go_hessians_terminal_state[0];
     Vx1 = this->cost_to_go_gradients_state[0];
     this->dynamics_mult_initial_state_feedback_terms[0] = -(Vxx * this->state_dependencies_initial_state_projection[0]);
-    this->dynamics_mult_terminal_state_feedback_terms[0] = -(Vzx.transpose() + Vxx * this->state_dependencies_terminal_state_projection[0]);
+    this->dynamics_mult_terminal_state_feedback_terms[0] =
+        -(Vzx.transpose() + Vxx * this->state_dependencies_terminal_state_projection[0]);
     this->dynamics_mult_feedforward_terms[0] = -(Vx1 + Vxx * this->state_dependencies_affine_term[0]);
   };
 
   // Forward solve for Multiplier dependencies
   for (unsigned int t = 0; t < T - 1; ++t) {
     j = (t < T - 1) ? this->num_active_constraints[t] : l;
-    if (this->num_residual_constraints_to_go[t+1] > 0 or this->num_active_constraints[t] > 0) {
+    if (this->num_residual_constraints_to_go[t + 1] > 0 or this->num_active_constraints[t] > 0) {
       this->running_constraint_mult_initial_state_feedback_terms[t].topRows(j) +=
           (this->running_constraint_mult_dynamics_mult_feedback_terms[t].topRows(j)
               * this->dynamics_mult_initial_state_feedback_terms[t]).eval();

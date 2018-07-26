@@ -37,6 +37,24 @@ void numerical_jacobian_second_input(const std::function<void(const Eigen::Vecto
                                      const Eigen::VectorXd *v2,
                                      Eigen::MatrixXd &J2);
 
+void numerical_jacobian_first_input(const std::function<void(const Eigen::VectorXd *,
+                                                             const Eigen::VectorXd *,
+                                                             int,
+                                                             Eigen::VectorXd &)> *f,
+                                    const Eigen::VectorXd *v1,
+                                    const Eigen::VectorXd *v2,
+                                    int t,
+                                    Eigen::MatrixXd &J1);
+
+void numerical_jacobian_second_input(const std::function<void(const Eigen::VectorXd *,
+                                                              const Eigen::VectorXd *,
+                                                              int,
+                                                              Eigen::VectorXd &)> *f,
+                                     const Eigen::VectorXd *v1,
+                                     const Eigen::VectorXd *v2,
+                                     int t,
+                                     Eigen::MatrixXd &J2);
+
 void numerical_jacobian(const std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> *f,
                         const Eigen::VectorXd *v,
                         Eigen::MatrixXd &J);

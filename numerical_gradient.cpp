@@ -89,6 +89,48 @@ void numerical_jacobian_second_input(const std::function<void(const Eigen::Vecto
   }
 }
 
+void numerical_jacobian_first_input(const std::function<void(const Eigen::VectorXd *,
+                                                             const Eigen::VectorXd *,
+                                                             int,
+                                                             Eigen::VectorXd &)> *f,
+                                    const Eigen::VectorXd *v1,
+                                    const Eigen::VectorXd *v2,
+                                    int t,
+                                    Eigen::MatrixXd &J1){
+  const long n = (*v1).size();
+  Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
+  Eigen::VectorXd temp1, temp2, temp3, temp4;
+
+  for (int i = 0; i < n; ++i) {
+    temp1 = (*v1) + I.col(i);
+    temp2 = (*v1) - I.col(i);
+    (*f)(&temp1, v2, t, temp3);
+    (*f)(&temp2, v2, t, temp4);
+    J1.col(i) = (temp3 - temp4) / (2.*tol);
+  }
+}
+
+void numerical_jacobian_second_input(const std::function<void(const Eigen::VectorXd *,
+                                                              const Eigen::VectorXd *,
+                                                              int,
+                                                              Eigen::VectorXd &)> *f,
+                                     const Eigen::VectorXd *v1,
+                                     const Eigen::VectorXd *v2,
+                                     int t,
+                                     Eigen::MatrixXd &J2) {
+  const long n = (*v2).size();
+  Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
+  Eigen::VectorXd temp1, temp2, temp3, temp4;
+
+  for (int i = 0; i < n; ++i) {
+    temp1 = (*v2) + I.col(i);
+    temp2 = (*v2) - I.col(i);
+    (*f)(v1, &temp1, t, temp3);
+    (*f)(v1, &temp2, t, temp4);
+    J2.col(i) = (temp3 - temp4) / (2.*tol);
+  }
+}
+
 void numerical_jacobian(const std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> *f,
                         const Eigen::VectorXd *v,
                         Eigen::MatrixXd &J) {

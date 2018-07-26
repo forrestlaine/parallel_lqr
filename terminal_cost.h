@@ -19,9 +19,7 @@ class TerminalCost {
 
   TerminalCost(std::function<double(const Eigen::VectorXd *)> *cost,
                std::function<void(const Eigen::VectorXd *,
-                                  Eigen::VectorXd &)> *cost_gradient_state,
-               std::function<void(const Eigen::VectorXd *,
-                                  Eigen::VectorXd &)> *cost_gradient_control) :
+                                  Eigen::VectorXd &)> *cost_gradient_state) :
       cost(*cost),
       cost_gradient_state(*cost_gradient_state),
       analytic_gradient_given(true),
@@ -31,7 +29,7 @@ class TerminalCost {
                std::function<void(const Eigen::VectorXd *,
                                   Eigen::VectorXd &)> *cost_gradient_state,
                std::function<void(const Eigen::VectorXd *,
-                                  Eigen::MatrixXd &)> *cost_hessian_state_state :
+                                  Eigen::MatrixXd &)> *cost_hessian_state_state) :
       cost(*cost),
       cost_gradient_state(*cost_gradient_state),
       cost_hessian_state_state(*cost_hessian_state_state),

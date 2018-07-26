@@ -9,11 +9,15 @@
 #include "Eigen3/Eigen/Dense"
 #include "trajectory.h"
 
+#include "dynamics.h"
+#include "running_constraint.h"
+#include "endpoint_constraint.h"
+#include "running_cost.h"
+#include "terminal_cost.h"
 
 namespace parent_trajectory {
 
-class ParentTrajectory
-{
+class ParentTrajectory {
  public:
   ParentTrajectory(unsigned int trajectory_length,
                    unsigned int state_dimension,
@@ -21,12 +25,12 @@ class ParentTrajectory
                    unsigned int initial_constraint_dimension,
                    unsigned int running_constraint_dimension,
                    unsigned int terminal_constraint_dimension,
-                   const std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> *dynamics,
-                   const std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> *running_constraint,
-                   const std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> *final_constraint,
-                   const std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> *initial_constraint,
-                   const std::function<double(const Eigen::VectorXd*, const Eigen::VectorXd*)> *running_cost,
-                   const std::function<double(const Eigen::VectorXd*)> *terminal_cost):
+                   const dynamics::Dynamics *dynamics,
+                   const running_constraint::RunningConstraint *running_constraint,
+                   const endpoint_constraint::EndPointConstraint *terminal_constraint,
+                   const endpoint_constraint::EndPointConstraint *initial_constraint,
+                   const running_cost::RunningCost *running_cost,
+                   const terminal_cost::TerminalCost *terminal_cost) :
       trajectory_length(trajectory_length),
       num_child_trajectories(1),
       state_dimension(state_dimension),
@@ -38,7 +42,7 @@ class ParentTrajectory
       terminal_projection(Eigen::VectorXd::Zero(terminal_constraint_dimension)),
       dynamics(*dynamics),
       running_constraint(*running_constraint),
-      final_constraint(*final_constraint),
+      terminal_constraint(*terminal_constraint),
       initial_constraint(*initial_constraint),
       running_cost(*running_cost),
       terminal_cost(*terminal_cost),
@@ -56,10 +60,13 @@ class ParentTrajectory
 
   void updateChildTrajectories();
 
-  static double empty_terminal_cost(const Eigen::VectorXd* x) {return 0.0;};
+  static void simple_end_point_constraint(const Eigen::VectorXd *x, Eigen::VectorXd &val) { val = *x; };
 
-  static void simple_end_point_constraint(const Eigen::VectorXd* x, Eigen::VectorXd& val) {val = *x;};
+  static double empty_cost(const Eigen::VectorXd *x) { return 0.0; }
 
+  static void empty_cost_gradient(const Eigen::VectorXd *x, Eigen::VectorXd &g) {};
+
+  static void empty_cost_hessian(const Eigen::VectorXd *x, Eigen::MatrixXd &H) {};
 
  public:
   const unsigned int trajectory_length;
@@ -73,13 +80,12 @@ class ParentTrajectory
   Eigen::VectorXd initial_state;
   Eigen::VectorXd terminal_projection;
 
-
-  std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> dynamics;
-  std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> running_constraint;
-  std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> final_constraint;
-  std::function<void(const Eigen::VectorXd*, Eigen::VectorXd&)> initial_constraint;
-  std::function<double(const Eigen::VectorXd*, const Eigen::VectorXd*)> running_cost;
-  std::function<double(const Eigen::VectorXd*)> terminal_cost;
+  dynamics::Dynamics dynamics;
+  running_constraint::RunningConstraint running_constraint;
+  endpoint_constraint::EndPointConstraint terminal_constraint;
+  endpoint_constraint::EndPointConstraint initial_constraint;
+  running_cost::RunningCost running_cost;
+  terminal_cost::TerminalCost terminal_cost;
 
   std::vector<trajectory::Trajectory> child_trajectories;
   std::vector<unsigned int> child_trajectory_lengths;

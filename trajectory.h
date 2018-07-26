@@ -46,6 +46,7 @@ class Trajectory {
       current_controls(trajectory_length - 1, Eigen::VectorXd::Zero(control_dimension)),
       num_active_constraints(trajectory_length, 0),
       active_running_constraints(trajectory_length - 1, Eigen::Matrix<bool, Eigen::Dynamic, 1>::Zero(running_constraint_dimension)),
+      active_terminal_constraints(Eigen::Matrix<bool, Eigen::Dynamic, 1>::Zero(state_dimension)),
       num_residual_constraints_to_go(trajectory_length, 0),
       need_dynamics_mult(trajectory_length, false),
       initial_constraint_multiplier(Eigen::VectorXd::Zero(state_dimension)),
@@ -248,7 +249,8 @@ class Trajectory {
 
   std::vector<unsigned int> num_active_constraints;
   std::vector<Eigen::Matrix<bool, Eigen::Dynamic, 1>> active_running_constraints;
-  std::vector<unsigned int> num_residual_constraints_to_go;
+  Eigen::Matrix<bool, Eigen::Dynamic, 1> active_terminal_constraints;
+  std::vector<int> num_residual_constraints_to_go;
   std::vector<bool> need_dynamics_mult;
 
   Eigen::VectorXd initial_constraint_multiplier;

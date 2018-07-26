@@ -1,7 +1,7 @@
+////
+//// Created by Forrest Laine on 7/17/18.
+////
 //
-// Created by Forrest Laine on 7/17/18.
-//
-
 #include <iostream>
 #include <stdlib.h>
 #include "trajectory.h"
@@ -25,6 +25,8 @@
   void omp_set_num_threads(int) {}
   int omp_get_num_procs(void) {return 1;}
 #endif
+
+namespace {
 
 double running_cost(const Eigen::VectorXd *x, const Eigen::VectorXd *u) {
   return 0.0;
@@ -142,7 +144,7 @@ void run_parent_traj(const Eigen::MatrixXd A,
         xT = parent_traj.child_trajectory_link_points[i];
       }
       if (i > 0) {
-        x00 = parent_traj.child_trajectory_link_points[i-1];
+        x00 = parent_traj.child_trajectory_link_points[i - 1];
       } else {
         x00 = -x0;
       }
@@ -258,7 +260,7 @@ void run_single_traj(const Eigen::MatrixXd A,
       std::cout << "u: " << temp2.transpose() << std::endl;
     }
   }
-  std::cout<<"Serial time: " << t1-t0 << std::endl;
+  std::cout << "Serial time: " << t1 - t0 << std::endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -267,6 +269,7 @@ int main(int argc, char *argv[]) {
   int TT = 100;
   int n = 2;
   int m = 1;
+  bool constrained = false;
 
   if (argc > 1) {
     if (argv[1] >= 0) {
@@ -292,11 +295,22 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (argc > 5) {
+    if (argv[5]) {
+      constrained = true;
+    }
+  }
+
   const Eigen::MatrixXd A = Eigen::MatrixXd::Random(n, n);
   const Eigen::MatrixXd B = Eigen::MatrixXd::Random(n, m);
   const Eigen::VectorXd c = Eigen::VectorXd::Random(n);
+  const Eigen::VectorXd q = Eigen::VectorXd::Random(n);
   const Eigen::VectorXd r = Eigen::VectorXd::Random(m);
+  const Eigen::MatrixXd Q = Eigen::MatrixXd::Random(n, n);
+  const Eigen::MatrixXd R = Eigen::MatrixXd::Random(m, m);
+  const Eigen::MatrixXd S = Eigen::MatrixXd::Random(m, n);
   const Eigen::VectorXd x0 = Eigen::VectorXd::Random(n);
+
 
 //  Eigen::MatrixXd A(n, n);
 //  Eigen::MatrixXd B(n, m);
@@ -309,6 +323,7 @@ int main(int argc, char *argv[]) {
 //  Eigen::VectorXd x0(n);
 //  x0 << 5.0, 1.0;
 
-  run_single_traj(A,B,c,r,x0,(unsigned int) num_trajs, (unsigned int) TT, (unsigned int) n, (unsigned int) m);
-  run_parent_traj(A,B,c,r,x0,(unsigned int) num_trajs, (unsigned int) TT, (unsigned int) n, (unsigned int) m);
+//  run_single_traj(A, B, c, r, x0, (unsigned int) num_trajs, (unsigned int) TT, (unsigned int) n, (unsigned int) m);
+//  run_parent_traj(A, B, c, r, x0, (unsigned int) num_trajs, (unsigned int) TT, (unsigned int) n, (unsigned int) m);
+}
 }

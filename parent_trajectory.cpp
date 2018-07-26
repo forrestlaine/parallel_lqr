@@ -56,14 +56,18 @@ void ParentTrajectory::initializeChildTrajectories() {
   for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
     unsigned int terminal_constraint_dimension =
         (t < this->num_child_trajectories - 1) ? this->state_dimension : this->terminal_constraint_dimension;
-    std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
-        final_constraint =
-        (t < this->num_child_trajectories - 1) ? ParentTrajectory::simple_end_point_constraint : this->final_constraint;
-    std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
-        initial_constraint = (t > 0) ? ParentTrajectory::simple_end_point_constraint : this->initial_constraint;
-    std::function<double(const Eigen::VectorXd *)>
-        final_cost =
-        (t < this->num_child_trajectories - 1) ? ParentTrajectory::empty_terminal_cost : this->terminal_cost;
+    endpoint_constraint::EndPointConstraint terminal_constraint = this->terminal_constraint;
+    if (t < this->num_child_trajectories - 1) {
+      terminal_constraint.make_implicit();
+    }
+
+    std::function<double(const Eigen::VectorXd *)> empty_cost = ParentTrajectory::empty_cost;
+    std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> empty_gradient = ParentTrajectory::empty_cost_gradient;
+    std::function<void(const Eigen::VectorXd *, Eigen::MatrixXd &)> empty_hessian = ParentTrajectory::empty_cost_hessian;
+
+    terminal_cost::TerminalCost terminal_cost = (t < this->num_child_trajectories - 1) ? terminal_cost::TerminalCost(&empty_cost,
+                                                                                                                     &empty_gradient,
+                                                                                                                     &empty_hessian) : this->terminal_cost;
 
     this->child_trajectories.emplace_back(trajectory::Trajectory(this->child_trajectory_lengths[t],
                                                                  this->state_dimension,
@@ -71,8 +75,8 @@ void ParentTrajectory::initializeChildTrajectories() {
                                                                  this->running_constraint_dimension,
                                                                  &this->dynamics,
                                                                  &this->running_constraint,
-                                                                 &final_constraint,
-                                                                 &initial_constraint,
+                                                                 &terminal_constraint,
+                                                                 &this->initial_constraint,
                                                                  &this->running_cost,
                                                                  &terminal_cost));
     this->child_trajectories[t].set_terminal_constraint_dimension(terminal_constraint_dimension);
