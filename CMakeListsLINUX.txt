@@ -7,6 +7,8 @@ include_directories(${GTEST_INCLUDE_DIRS})
 #set(CMAKE_C_COMPILER gcc-8 CACHE STRING "C compiler" FORCE)
 #set(CMAKE_CXX_COMPILER g++-8 CACHE STRING "C++ compiler" FORCE)
 
+find_package(LAPACK)
+
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 #set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN3_INCLUDE_DIR}")
 set(CMAKE_CXX_STANDARD 11)
@@ -22,7 +24,7 @@ if(DEBUG)
 endif(DEBUG)
 
 INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}")
-set(CMAKE_CXX_FLAGS "-O3 -fopenmp -Wall -Wextra -g -ggdb3")
+set(CMAKE_CXX_FLAGS "-O3 -fopenmp -Wall -Wextra -llapack -lblas -g -ggdb3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fopenmp")
 
@@ -39,11 +41,11 @@ endif(OPENMP_FOUND)
 #    set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GOOGLE_TEST_LIB}")
 #endif(GTEST_FOUND)
 
-
-add_library(motorboat SHARED trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
-add_executable(test_trajectory test_trajectory.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
-add_executable(run_parent_traj run_parent_traj.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp)
+add_library(motorboat SHARED trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h)
+add_executable(test_trajectory test_trajectory.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h)
+#add_executable(run_parent_traj run_parent_traj.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h)
+#target_link_libraries(run_parent_traj motorboat)
 target_link_libraries(test_trajectory gtest gtest_main)
-
 target_link_libraries(motorboat Eigen3::Eigen)
 add_test(test_trajectory test_trajectory)
+
