@@ -269,7 +269,6 @@ int main(int argc, char *argv[]) {
   int TT = 100;
   int n = 2;
   int m = 1;
-  bool constrained = false;
 
   if (argc > 1) {
     if (argv[1] >= 0) {
@@ -292,12 +291,6 @@ int main(int argc, char *argv[]) {
   if (argc > 4) {
     if (argv[4] >= 0) {
       m = strtol(argv[4], nullptr, 0);
-    }
-  }
-
-  if (argc > 5) {
-    if (argv[5]) {
-      constrained = true;
     }
   }
 

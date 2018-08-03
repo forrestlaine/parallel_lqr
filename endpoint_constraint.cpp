@@ -18,6 +18,7 @@ long EndPointConstraint::eval_active_indices(const Eigen::VectorXd *constraint,
   const long n = (*constraint).size();
   for (int i = 0; i < n; ++i) {
     active_indices(i) = ((*constraint)(i) > -tol);
+    active_indices(i) = true;
   }
   return active_indices.count();
 }

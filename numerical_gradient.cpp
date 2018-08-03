@@ -4,6 +4,8 @@
 
 #include "numerical_gradient.h"
 
+#include <iostream>
+
 namespace numerical_gradient {
 
 const double tol = 1e-8;
@@ -79,7 +81,6 @@ void numerical_jacobian_second_input(const std::function<void(const Eigen::Vecto
   const long n = (*v2).size();
   Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
   Eigen::VectorXd temp1, temp2, temp3, temp4;
-
   for (int i = 0; i < n; ++i) {
     temp1 = (*v2) + I.col(i);
     temp2 = (*v2) - I.col(i);
@@ -153,14 +154,13 @@ void numerical_hessian_first_first(const std::function<double(const Eigen::Vecto
                                    Eigen::MatrixXd &H11) {
   const long n = (*v1).size();
   Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
-  Eigen::VectorXd temp1, temp2, temp3, temp4;
+  Eigen::VectorXd temp1(n), temp2(n), temp3(n), temp4(n);
 
   for (int i = 0; i < n; ++i) {
     temp1 = (*v1) + I.col(i);
     temp2 = (*v1) - I.col(i);
     numerical_gradient_first_input(f, &temp1, v2, temp3);
     numerical_gradient_first_input(f, &temp2, v2, temp4);
-
     H11.col(i) = (temp3 - temp4) / (2. * tol);
   }
 }
@@ -170,8 +170,9 @@ void numerical_hessian_second_first(const std::function<double(const Eigen::Vect
                                     const Eigen::VectorXd *v2,
                                     Eigen::MatrixXd &H21) {
   const long n = (*v1).size();
+  const long m = (*v2).size();
   Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
-  Eigen::VectorXd temp1, temp2, temp3, temp4;
+  Eigen::VectorXd temp1(n), temp2(n), temp3(m), temp4(m);
 
   for (int i = 0; i < n; ++i) {
     temp1 = (*v1) + I.col(i);
@@ -188,11 +189,11 @@ void numerical_hessian_second_second(const std::function<double(const Eigen::Vec
                                      const Eigen::VectorXd *v2,
                                      Eigen::MatrixXd &H22) {
 
-  const long n = (*v2).size();
-  Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
-  Eigen::VectorXd temp1, temp2, temp3, temp4;
+  const long m = (*v2).size();
+  Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(m, m);
+  Eigen::VectorXd temp1(m), temp2(m), temp3(m), temp4(m);
 
-  for (int i = 0; i < n; ++i) {
+  for (int i = 0; i < m; ++i) {
     temp1 = (*v2) + I.col(i);
     temp2 = (*v2) - I.col(i);
     numerical_gradient_second_input(f, v1, &temp1, temp3);
@@ -207,7 +208,7 @@ void numerical_hessian(const std::function<double(const Eigen::VectorXd *)> *f,
                        Eigen::MatrixXd &H) {
   const long n = (*v).size();
   Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
-  Eigen::VectorXd temp1, temp2, temp3, temp4;
+  Eigen::VectorXd temp1(n), temp2(n), temp3(n), temp4(n);
 
   for (int i = 0; i < n; ++i) {
     temp1 = (*v) + I.col(i);

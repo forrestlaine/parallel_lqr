@@ -46,11 +46,20 @@ class ParentTrajectory {
       initial_constraint(*initial_constraint),
       running_cost(*running_cost),
       terminal_cost(*terminal_cost),
-      child_trajectories(std::vector<trajectory::Trajectory>()) {};
+      child_trajectories(std::vector<trajectory::Trajectory>()),
+      empty_terminal_constraint(&this->simple_end_point_constraint,
+                                &this->simple_end_point_constraint_jacobian,
+                                state_dimension,
+                                true),
+      empty_terminal_cost(&this->empty_cost,
+                          &this->empty_cost_gradient,
+                          &this->empty_cost_hessian) {};
 
   ~ParentTrajectory() = default;
 
   void setNumChildTrajectories(unsigned int num_threads);
+
+  void populateChildDerivativeTerms();
 
   void initializeChildTrajectories();
 
@@ -60,13 +69,21 @@ class ParentTrajectory {
 
   void updateChildTrajectories();
 
-  static void simple_end_point_constraint(const Eigen::VectorXd *x, Eigen::VectorXd &val) { val = *x; };
+  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
+      simple_end_point_constraint = [](const Eigen::VectorXd *x, Eigen::VectorXd &val) {
+    val = *x;
+  };
 
-  static double empty_cost(const Eigen::VectorXd *x) { return 0.0; }
+  std::function<void(const Eigen::VectorXd *,
+                            Eigen::MatrixXd &)> simple_end_point_constraint_jacobian = [](const Eigen::VectorXd *x,
+                                                                                          Eigen::MatrixXd &val) { val.setIdentity(); };
 
-  static void empty_cost_gradient(const Eigen::VectorXd *x, Eigen::VectorXd &g) {};
+  std::function<double(const Eigen::VectorXd *)> empty_cost = [](const Eigen::VectorXd *x) { return 0.0; };
 
-  static void empty_cost_hessian(const Eigen::VectorXd *x, Eigen::MatrixXd &H) {};
+
+  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> empty_cost_gradient = [](const Eigen::VectorXd *x, Eigen::VectorXd &g) { g.setZero(); };
+
+  std::function<void(const Eigen::VectorXd *, Eigen::MatrixXd &)> empty_cost_hessian = [](const Eigen::VectorXd *x, Eigen::MatrixXd &H) { H.setZero(); };
 
  public:
   const unsigned int trajectory_length;
@@ -96,6 +113,9 @@ class ParentTrajectory {
   std::vector<Eigen::MatrixXd> link_point_dependencies_same_link_point;
   std::vector<Eigen::MatrixXd> link_point_dependencies_next_link_point;
   std::vector<Eigen::VectorXd> link_point_dependencies_affine_term;
+
+  endpoint_constraint::EndPointConstraint empty_terminal_constraint;
+  terminal_cost::TerminalCost empty_terminal_cost;
 
 };
 

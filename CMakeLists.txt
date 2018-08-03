@@ -5,6 +5,8 @@ enable_testing()
 find_package(GTest REQUIRED)
 include_directories(${GTEST_INCLUDE_DIRS})
 
+find_package(LAPACK)
+
 set(CMAKE_C_COMPILER gcc-8 CACHE STRING "C compiler" FORCE)
 set(CMAKE_CXX_COMPILER g++-8 CACHE STRING "C++ compiler" FORCE)
 
@@ -22,7 +24,7 @@ if (DEBUG)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -ggdb3")
 endif (DEBUG)
 
-set(CMAKE_CXX_FLAGS "-O3 -fopenmp -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "-O3 -fopenmp -Wall -Wextra -llapack -lblas")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fopenmp")
 
@@ -40,8 +42,8 @@ endif (OPENMP_FOUND)
 #endif(GTEST_FOUND)
 
 
-add_library(motorboat SHARED trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h lqr_system.cpp lqr_system.h)
-add_executable(test_trajectory test_trajectory.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h lqr_system.cpp lqr_system.h)
+add_library(motorboat SHARED trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h)
+add_executable(test_trajectory test_trajectory.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h)
 #add_executable(run_parent_traj run_parent_traj.cpp trajectory.cpp trajectory.h parent_trajectory.h parent_trajectory.cpp dynamics.h dynamics.cpp running_constraint.cpp running_constraint.h numerical_gradient.h numerical_gradient.cpp endpoint_constraint.cpp endpoint_constraint.h running_cost.cpp running_cost.h terminal_cost.cpp terminal_cost.h)
 #target_link_libraries(run_parent_traj motorboat)
 target_link_libraries(test_trajectory gtest gtest_main)

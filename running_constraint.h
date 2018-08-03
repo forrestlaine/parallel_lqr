@@ -59,7 +59,7 @@ class RunningConstraint {
                                         int t,
                                         Eigen::MatrixXd &Hu);
 
-  int get_constraint_dimension() { return constraint_dimension; }
+  int get_constraint_dimension() const { return constraint_dimension; }
 
  private:
   std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::VectorXd &)> constraint;

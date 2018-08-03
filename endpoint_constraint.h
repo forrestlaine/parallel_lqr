@@ -43,9 +43,9 @@ class EndPointConstraint {
   void eval_constraint_jacobian(const Eigen::VectorXd *x,
                                 Eigen::MatrixXd &Hx);
 
-  int get_constraint_dimension() { return constraint_dimension; }
+  int get_constraint_dimension() const { return constraint_dimension; }
 
-  bool is_implicit() { return implicit; }
+  bool is_implicit() const { return implicit; }
 
   void make_implicit() { this->implicit = true; }
 
@@ -55,9 +55,9 @@ class EndPointConstraint {
 
   bool analytic_jacobian_given;
 
-  bool implicit;
-
   const int constraint_dimension;
+
+  bool implicit;
 };
 
 } // namespace endpoint_constraint
