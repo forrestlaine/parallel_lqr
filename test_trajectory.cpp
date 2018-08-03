@@ -3,12 +3,12 @@
 //
 
 #include <iostream>
+#include <vector>
 #include "trajectory.h"
 #include "parent_trajectory.h"
 #include "gtest/gtest.h"
 #include <Eigen3/Eigen/Dense>
 
-#include "lqr_system.h"
 #include "dynamics.h"
 #include "running_constraint.h"
 #include "endpoint_constraint.h"
@@ -33,63 +33,172 @@ void omp_set_num_threads(int) {}
 int omp_get_num_procs(void) {return 1;}
 #endif
 
+namespace test_trajectory {
 
-//std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> dynamics;
-//std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> running_constraint;
-//std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd&)> final_constraint;
-//std::function<void(const Eigen::VectorXd*, const Eigen::VectorXd*, Eigen::VectorXd&)> initial_constraint;
-//std::function<double(const Eigen::VectorXd*, const Eigen::VectorXd*)> running_cost;
-//std::function<double(const Eigen::VectorXd*)> terminal_cost;
+const int n = 9;
+const int m = 2;
+const int T = 100;
+const int l = 4;
+const int runs = 10;
 
-namespace {
+const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(n, n);
+const Eigen::MatrixXd R = Eigen::MatrixXd::Identity(m, m);
+const Eigen::MatrixXd S = Eigen::MatrixXd::Zero(m, n);
+const Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n, n);
+const Eigen::MatrixXd B = Eigen::MatrixXd::Random(n, m);
+const Eigen::MatrixXd A = Eigen::MatrixXd::Random(n,n);
+const Eigen::VectorXd q = Eigen::VectorXd::Constant(n, 1.0);
+const Eigen::VectorXd r = Eigen::VectorXd::Constant(m, 1.0);
+const Eigen::VectorXd c = Eigen::VectorXd::Constant(n, 1.0);
+const Eigen::VectorXd x0 = Eigen::VectorXd::Constant(n, 1.0);
+const Eigen::VectorXd xT = Eigen::VectorXd::Constant(n, 2.0);
 
-const int n = 3;
-const int m = 1;
+std::function<double(const Eigen::VectorXd *)> terminal_cost_f = [](const Eigen::VectorXd *x) {
+  Eigen::MatrixXd val = 0.5 * (*x).transpose() * Q * (*x) + (*x).transpose() * q;
+  return val(0, 0);
+};
+
+std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
+    terminal_grad_f = [](const Eigen::VectorXd *x, Eigen::VectorXd &g) {
+  g = Q * (*x) + q;
+};
+
+std::function<void(const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    terminal_hess_f = [](const Eigen::VectorXd *x, Eigen::MatrixXd &H) {
+  H = Q;
+};
+
+std::function<double(const Eigen::VectorXd *, const Eigen::VectorXd *)>
+    running_cost_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u) {
+  Eigen::MatrixXd val =
+      0.5 * ((*x).transpose() * Q * (*x) + (*u).transpose() * R * (*u)) + (*u).transpose() * S * (*x)
+          + (*x).transpose() * q + (*u).transpose() * r;
+  return val(0, 0);
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)>
+    running_grad_x_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::VectorXd &gx) {
+  gx = Q * (*x) + S.transpose() * (*u) + q;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)>
+    running_grad_u_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::VectorXd &gu) {
+  gu = R * (*u) + S * (*x) + r;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    running_hess_xx_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::MatrixXd &Hxx) {
+  Hxx = Q;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    running_hess_ux_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::MatrixXd &Hux) {
+  Hux = S;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    running_hess_uu_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::MatrixXd &Huu) {
+  Huu = R;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)>
+    dynamics_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::VectorXd &xx) {
+//  Eigen::MatrixXd A = Eigen::MatrixXd::Identity(n, n);
+//  for (int i = 0; i < n - 1; ++i) {
+//    A(i + 1, i) = 1.0;
+//  }
+  xx = A * (*x) + B * (*u) + c;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    dynamics_jac_x_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::MatrixXd &Ax) {
+//  Eigen::MatrixXd A = Eigen::MatrixXd::Identity(n, n);
+//  for (int i = 0; i < n - 1; ++i) {
+//    A(i + 1, i) = 1.0;
+//  }
+  Ax = A;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    dynamics_jac_u_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, Eigen::MatrixXd &Au) {
+  Au = B;
+};
+
+std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
+    initial_constraint_f = [](const Eigen::VectorXd *x, Eigen::VectorXd &c) {
+  c = (*x) - x0;
+};
+
+std::function<void(const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    initial_constraint_jac_f = [](const Eigen::VectorXd *x, Eigen::MatrixXd &J) {
+  J = I;
+};
+
+std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
+    terminal_constraint_f = [](const Eigen::VectorXd *x, Eigen::VectorXd &c) {
+  c = (*x) - xT;
+};
+
+std::function<void(const Eigen::VectorXd *, Eigen::MatrixXd &)>
+    terminal_constraint_jac_f = [](const Eigen::VectorXd *x, Eigen::MatrixXd &J) {
+  J = I;
+};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::VectorXd &)>
+    running_constraint_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, int t, Eigen::VectorXd &c) {};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::MatrixXd &)>
+    running_constraint_jac_x_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, int t, Eigen::MatrixXd &Jx) {};
+
+std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::MatrixXd &)>
+    running_constraint_jac_u_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, int t, Eigen::MatrixXd &Ju) {};
 
 TEST(TestTrajectory, LQRSimple) {
-  const int T = 9;
-  Eigen::MatrixXd A(n, n);
-  Eigen::MatrixXd B(n, m);
-  Eigen::VectorXd c(n);
-  Eigen::VectorXd r(m);
-  A << 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0;
-  B << 0.0, 0.0, 0.1;//, 0.0, 0.0, 1.0;
-  c << 1.0, 1.0, 1.0;
-  r << 1.0;//, 1.0;
-  Eigen::VectorXd x0(n);
-  x0 << 5.0, 1.0, -1.0;
 
-  const Eigen::MatrixXd Inn = Eigen::MatrixXd::Identity(n, n);
-  const Eigen::MatrixXd Imm = Eigen::MatrixXd::Identity(m, m);
-  const Eigen::MatrixXd Zmn = Eigen::MatrixXd::Zero(m,n);
-  const Eigen::VectorXd Zn = Eigen::VectorXd::Zero(n);
-  const Eigen::MatrixXd Znn = Eigen::MatrixXd::Zero(n, n);
+  dynamics::Dynamics dynamics_obj = dynamics::Dynamics(&dynamics_f, &dynamics_jac_x_f, &dynamics_jac_u_f);
+  running_cost::RunningCost running_cost_obj = running_cost::RunningCost(&running_cost_f,
+                                                                         &running_grad_x_f,
+                                                                         &running_grad_u_f,
+                                                                         &running_hess_xx_f,
+                                                                         &running_hess_ux_f,
+                                                                         &running_hess_uu_f);
+  terminal_cost::TerminalCost terminal_cost_obj = terminal_cost::TerminalCost(&terminal_cost_f,
+                                                                              &terminal_grad_f,
+                                                                              &terminal_hess_f);
+  endpoint_constraint::EndPointConstraint
+      terminal_constraint_obj = endpoint_constraint::EndPointConstraint(&terminal_constraint_f,
+                                                                        &terminal_constraint_jac_f,
+                                                                        0,
+                                                                        true);
+  endpoint_constraint::EndPointConstraint
+      initial_constraint_obj = endpoint_constraint::EndPointConstraint(&initial_constraint_f,
+                                                                       &initial_constraint_jac_f,
+                                                                       n,
+                                                                       false);
+  running_constraint::RunningConstraint
+      running_constraint_obj = running_constraint::RunningConstraint(&running_constraint_f,
+                                                                     &running_constraint_jac_x_f,
+                                                                     &running_constraint_jac_u_f,
+                                                                     0);
 
-  std::cout << "A :" << A << std::endl;
-  std::cout << "B :" << B << std::endl;
+  int term_dim = (terminal_constraint_obj.is_implicit()) ? terminal_constraint_obj.get_constraint_dimension() : 0;
 
-  lqr_system::LQRSystem system = lqr_system::LQRSystem(&Inn, &Zmn, &Imm, &c, &r, &A, &B, &c, &x0, &Zn, T, n, m, false);
-
-  std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)> dynamics_f = system.dynamics;
-  std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::VectorXd &)>
-      running_constraint_f = system.running_constraint;
-  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> final_constraint_f = system.terminal_constraint;
-  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
-      initial_constraint_f = system.initial_constraint;
-  std::function<double(const Eigen::VectorXd *, const Eigen::VectorXd *)> running_cost_f = system.running_cost;
-  std::function<double(const Eigen::VectorXd *)> terminal_cost_f = system.terminal_cost;
-
-  dynamics::Dynamics dynamics_obj = dynamics::Dynamics(&dynamics_f);
-  running_cost::RunningCost running_cost_obj = running_cost::RunningCost(&running_cost_f);
-  terminal_cost::TerminalCost terminal_cost_obj = terminal_cost::TerminalCost(&terminal_cost_f);
-  endpoint_constraint::EndPointConstraint terminal_constraint_obj = endpoint_constraint::EndPointConstraint(&final_constraint_f, 0, false);
-  endpoint_constraint::EndPointConstraint initial_constraint_obj = endpoint_constraint::EndPointConstraint(&initial_constraint_f, n, true);
-  running_constraint::RunningConstraint running_constraint_obj = running_constraint::RunningConstraint(&running_constraint_f, 0);
+  parent_trajectory::ParentTrajectory parent_traj(T,
+                                                  n,
+                                                  m,
+                                                  n,
+                                                  0,
+                                                  0,
+                                                  &dynamics_obj,
+                                                  &running_constraint_obj,
+                                                  &terminal_constraint_obj,
+                                                  &initial_constraint_obj,
+                                                  &running_cost_obj,
+                                                  &terminal_cost_obj);
 
   trajectory::Trajectory test_traj(T,
                                    n,
                                    m,
-                                   1,
                                    &dynamics_obj,
                                    &running_constraint_obj,
                                    &terminal_constraint_obj,
@@ -97,55 +206,87 @@ TEST(TestTrajectory, LQRSimple) {
                                    &running_cost_obj,
                                    &terminal_cost_obj);
 
-//  test_traj.set_initial_constraint_jacobian_state(&Inn);
-//  test_traj.set_initial_constraint_affine_term(&x0);
-//
-//  test_traj.set_initial_constraint_dimension(n);
-//
-
-//
-//  test_traj.set_terminal_constraint_dimension((unsigned int) term_dim);
-//
-//  Eigen::VectorXd xT(n);
-//  Eigen::VectorXd xP(n);
-//  Eigen::VectorXd xPP(n);
-//  xT << 44.0, -4.0, 0.0;
-//  xP << 31.6301, 11.3699, -15.8389;
-//  xPP << 16.7639, 13.8662, -3.4175;
-//
-//  for (int t = 0; t < T - 1; ++t) {
-//    test_traj.set_dynamics_jacobian_state(t, &A);
-//    test_traj.set_dynamics_jacobian_control(t, &B);
-//    test_traj.set_dynamics_affine_term(t, &c);
-//    test_traj.set_num_active_constraints(t, 0);
-//
-//    test_traj.set_hamiltonian_hessians_state_state(t, &Znn);
-//    test_traj.set_hamiltonian_hessians_control_control(t, &Imm);
-//    test_traj.set_hamiltonian_gradients_state(t, &c);
-//    test_traj.set_hamiltonian_gradients_control(t, &r);
-//  }
-//
-//  test_traj.set_terminal_cost_hessians_state_state(&Znn);
-//  test_traj.set_terminal_cost_gradient_state(&c);
-//  if (term_dim > 0) {
-//    test_traj.set_terminal_constraint_jacobian_state(&Inn);
-//    test_traj.set_terminal_constraint_jacobian_terminal_projection(&Inn);
-//    test_traj.set_terminal_constraint_affine_term(&Zn);
-//  }
-
-  int term_dim = 0;
-  test_traj.set_terminal_constraint_dimension((unsigned int) term_dim);
   test_traj.populate_derivative_terms();
+  std::cout << "Made terms serial" << std::endl;
+  parent_traj.initial_state = x0;
+  parent_traj.setNumChildTrajectories(l);
+  parent_traj.initializeChildTrajectories();
+  parent_traj.populateChildDerivativeTerms();
+  std::cout << "Made terms parallel" << std::endl;
+
+//  std::cout<<test_traj.hamiltonian_hessians_state_state[0]<<std::endl<<std::endl;
+//  std::cout<<test_traj.hamiltonian_hessians_control_control[0]<<std::endl<<std::endl;
+//  std::cout<<test_traj.hamiltonian_hessians_control_state[0]<<std::endl<<std::endl;
+//
+//  std::cout<<test_traj.dynamics_jacobians_state[0]<<std::endl<<std::endl;
+//  std::cout<<test_traj.dynamics_jacobians_control[0]<<std::endl<<std::endl;
+//  std::cout<<test_traj.dynamics_affine_terms[0]<<std::endl<<std::endl;
+//
+//  std::cout<<test_traj.dynamics_jacobians_state[T-2]<<std::endl<<std::endl;
+//  std::cout<<test_traj.dynamics_jacobians_control[T-2]<<std::endl<<std::endl;
+//  std::cout<<test_traj.dynamics_affine_terms[T-2]<<std::endl<<std::endl;
+//
+//  std::cout<<test_traj.hamiltonian_hessians_state_state[T-2]<<std::endl<<std::endl;
+//  std::cout<<test_traj.hamiltonian_hessians_control_control[T-2]<<std::endl<<std::endl;
+//  std::cout<<test_traj.hamiltonian_hessians_control_state[T-2]<<std::endl<<std::endl;
+//
+//  std::cout<<test_traj.terminal_cost_hessians_state_state<<std::endl<<std::endl;
+//  std::cout<<test_traj.terminal_cost_gradient_state<<std::endl<<std::endl;
+
+
+
+
+
 
   std::cout << "Starting computation" << std::endl;
+  double total_serial_time = 1.0;
+  double total_parallel_time = 1.0;
+  double total_banded_time = 1.0;
 
-  double t0 = omp_get_wtime();
 
-  test_traj.compute_feedback_policies();
-  test_traj.compute_state_control_dependencies();
-  test_traj.compute_multipliers();
+  double t0, t1;
+  for (int run = 0; run < runs; ++run) {
+    test_traj.populate_derivative_terms();
+    t0 = omp_get_wtime();
+    test_traj.compute_feedback_policies();
+    test_traj.compute_state_control_dependencies();
+    test_traj.compute_multipliers();
+    t1 = omp_get_wtime();
+//    total_serial_time += (t1-t0);
+    total_serial_time = std::min(t1-t0, total_serial_time);
+//    std::cout<<"FB time: "<<t1-t0<<std::endl;
 
-  double t1 = omp_get_wtime();
+    parent_traj.initial_state = x0;
+    parent_traj.setNumChildTrajectories(l);
+    parent_traj.initializeChildTrajectories();
+    parent_traj.populateChildDerivativeTerms();
+    t0 = omp_get_wtime();
+    parent_traj.performChildTrajectoryCalculations();
+    parent_traj.solveForChildTrajectoryLinkPoints();
+    t1 = omp_get_wtime();
+    total_parallel_time = std::min( t1-t0, total_parallel_time);
+  }
+
+//  total_serial_time = total_serial_time / runs;
+//  total_parallel_time = total_parallel_time / runs;
+
+
+//  test_traj.populate_bandsolve_terms();
+//  for (int run = 0; run < runs; ++run) {
+//    test_traj.bandsolve_traj();
+//  }
+//
+
+//  std::cout<<parent_traj.child_trajectories[1].hamiltonian_hessians_state_state[0]<<std::endl<<std::endl;
+//  std::cout<<parent_traj.child_trajectories[1].hamiltonian_hessians_control_state[0]<<std::endl<<std::endl;
+//  std::cout<<parent_traj.child_trajectories[1].hamiltonian_hessians_control_control[0]<<std::endl<<std::endl;
+//
+//  std::cout<<parent_traj.child_trajectories[1].terminal_cost_hessians_state_state<<std::endl<<std::endl;
+//
+//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_jacobian_terminal_projection<<std::endl<<std::endl;
+//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_jacobian_state<<std::endl<<std::endl;
+//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_affine_term<<std::endl<<std::endl;
+//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_dimension<<std::endl;
 
   Eigen::VectorXd x(n);
   Eigen::VectorXd u(m);
@@ -161,71 +302,173 @@ TEST(TestTrajectory, LQRSimple) {
   Eigen::MatrixXd Vxx, Vzx, Vzz, V11;
   Eigen::VectorXd Vx1, Vz1;
 
-  for (int t = 0; t < T; ++t) {
-    test_traj.get_state_dependencies_initial_state_projection(t, Tx);
-    test_traj.get_state_dependencies_terminal_state_projection(t, Tz);
-    test_traj.get_state_dependencies_affine_term(t, T1);
+//  x = x0.eval();
+//  for (int t = 0; t < T; ++t) {
+//    test_traj.get_state_dependencies_initial_state_projection(t, Tx);
+//    test_traj.get_state_dependencies_terminal_state_projection(t, Tz);
+//    test_traj.get_state_dependencies_affine_term(t, T1);
+//
+//    Eigen::VectorXd temp = Tx * (-x0) + T1;
+//    if (term_dim > 0) {
+//      temp += Tz * (-xT);
+//    }
+//    x = temp;
+//    std::cout << "t: " << t + 1 << std::endl;
+//
+//    if (t < T - 1) {
+//      x = ((test_traj.dynamics_jacobians_state[t]
+//          + test_traj.dynamics_jacobians_control[t] * test_traj.current_state_feedback_matrices[t]) * x
+//          + test_traj.dynamics_jacobians_control[t] * test_traj.feedforward_controls[t]
+//          + test_traj.dynamics_affine_terms[t]).eval();
+//
+//      if (term_dim > 0) {
+//        x += (test_traj.dynamics_jacobians_control[t] * test_traj.terminal_state_feedback_matrices[t]) * (-xT);
+//      }
+//
+//      std::cout << "x: " << temp.transpose() << std::endl;
+//
+//      test_traj.get_control_dependencies_initial_state_projection(t, Ux);
+//      test_traj.get_control_dependencies_terminal_state_projection(t, Uz);
+//      test_traj.get_control_dependencies_affine_term(t, U1);
+//      Eigen::VectorXd temp2 = Ux * (-x0) + U1;
+//      if (term_dim > 0) {
+//        temp2 += Uz * (-xT);
+//      }
+//      std::cout << "u: " << temp2.transpose() << std::endl;
+////      std::cout << "xx: " << x.transpose() << std::endl;
+//    } else {
+//      std::cout << "x: " << temp.transpose() << std::endl;
+//
+//    }
+//
+//    test_traj.get_dynamics_mult_initial_state_feedback_term(t, Tx);
+//    test_traj.get_dynamics_mult_terminal_state_feedback_term(t, Tz);
+//    test_traj.get_dynamics_mult_feedforward_term(t, T1);
+//
+//    Eigen::VectorXd lam = Tx * (-x0) + T1;
+//    if (term_dim > 0) {
+//      lam += Tz * (-xT);
+//    }
+//    std::cout << "Lam " << t << " = " << lam.transpose() << std::endl;
+//
+//    Vxx = test_traj.cost_to_go_hessians_state_state[t];
+//    Vzx = test_traj.cost_to_go_hessians_terminal_state[t];
+//    Vzz = test_traj.cost_to_go_hessians_terminal_terminal[t];
+//    Vx1 = test_traj.cost_to_go_gradients_state[t];
+//    Vz1 = test_traj.cost_to_go_gradients_terminal[t];
+//    V11 = test_traj.cost_to_go_offsets[t];
+//    Eigen::VectorXd lam2 = Vxx * temp + Vx1;
+//    if (term_dim > 0) {
+//      lam2 += Vzx.transpose() * (-xT);
+//    }
+////    std::cout << "Lam " << t << " = " << lam2.transpose() << std::endl;
+//    if (t < T - 1) {
+//      test_traj.get_running_constraint_mult_initial_state_feedback_term(t, Ux);
+//      test_traj.get_running_constraint_mult_terminal_state_feedback_term(t, Uz);
+//      test_traj.get_running_constraint_mult_feedforward_term(t, U1);
+//
+//      Eigen::VectorXd mu = Ux * (-x0) + U1;
+//      if (term_dim > 0) {
+//        mu += Uz * (-xT);
+//      }
+//      std::cout << "Mu " << t << " = " << mu.transpose() << std::endl;
+//    } else {
+//      test_traj.get_terminal_constraint_mult_initial_state_feedback_term(Ux);
+//      test_traj.get_terminal_constraint_mult_terminal_state_feedback_term(Uz);
+//      test_traj.get_terminal_constraint_mult_feedforward_term(U1);
+//      Eigen::VectorXd mu = Ux * (-x0) + U1;
+//      if (term_dim > 0) {
+//        mu += Uz * (-xT);
+//      }
+//      std::cout << "Mu " << t << " = " << mu.transpose() << std::endl;
+//    }
+//  }
+//  test_traj.get_state_dependencies_initial_state_projection(T-1, Tx);
+//  test_traj.get_state_dependencies_terminal_state_projection(T-1, Tz);
+//  test_traj.get_state_dependencies_affine_term(T-1, T1);
+//
+//  Eigen::VectorXd temp = Tx * (-x0) + T1;
+//  if (term_dim > 0) {
+//    temp += Tz * (-xT);
+//  }
+//  std::cout<<temp.transpose()<<std::endl;
+////
+//
+//
+//  Eigen::VectorXd x00, xTT;
+//
+//  for (unsigned int i = 0; i < l; ++i) {
+//    for (int t = 0; t < parent_traj.child_trajectory_lengths[i]; ++t) {
+//      parent_traj.child_trajectories[i].get_state_dependencies_initial_state_projection(t, Tx);
+//      parent_traj.child_trajectories[i].get_state_dependencies_terminal_state_projection(t, Tz);
+//      parent_traj.child_trajectories[i].get_state_dependencies_affine_term(t, T1);
+//
+//      if (i < l - 1) {
+//        xTT = -parent_traj.child_trajectory_link_points[i];
+//      } else {
+//        xTT = xT;
+//      }
+//      if (i > 0) {
+//        x00 = -parent_traj.child_trajectory_link_points[i - 1];
+//      } else {
+//        x00 = x0;
+//      }
+//
+//      Eigen::VectorXd temp = Tx * (-x00) + T1;// + Tz * (-xT);
+//      if (i < l - 1 or (terminal_constraint_obj.get_constraint_dimension() > 0 and terminal_constraint_obj.is_implicit())) {
+//        temp += (Tz * (-xTT)).eval();
+//      }
+//      x = temp;
+//      std::cout << "t: " << t + 1 << std::endl;
+//      std::cout << "x: " << x.transpose() << std::endl;
+//      if (t < parent_traj.child_trajectory_lengths[i] - 1) {
+//        parent_traj.child_trajectories[i].get_control_dependencies_initial_state_projection(t, Ux);
+//        parent_traj.child_trajectories[i].get_control_dependencies_terminal_state_projection(t, Uz);
+//        parent_traj.child_trajectories[i].get_control_dependencies_affine_term(t, U1);
+//        Eigen::VectorXd temp2 = Ux * (-x00) + U1;// + Uz * (-xT);
+//        if (i < l - 1 or (terminal_constraint_obj.get_constraint_dimension() > 0 and terminal_constraint_obj.is_implicit())) {
+//          temp2 += (Uz * (-xTT)).eval();
+//        }
+//        std::cout << "u: " << temp2.transpose() << std::endl;
+//      }
+//      parent_traj.child_trajectories[i].get_dynamics_mult_initial_state_feedback_term(t, Tx);
+//      parent_traj.child_trajectories[i].get_dynamics_mult_terminal_state_feedback_term(t, Tz);
+//      parent_traj.child_trajectories[i].get_dynamics_mult_feedforward_term(t, T1);
+//
+//      Eigen::VectorXd lam = Tx * (-x0) + T1;
+//      if (term_dim > 0) {
+//        lam += Tz * (-xT);
+//      }
+//      std::cout << "Lam " << t << " = " << lam.transpose() << std::endl;
+//    }
+//  }
 
-    Eigen::VectorXd temp = Tx * (-x0) + T1;
-    if (term_dim > 0) {
-      temp += Tz * (-xT);
-    }
-    x = temp;
-    std::cout << "t: " << t + 1 << std::endl;
-    std::cout << "x: " << x.transpose() << std::endl;
-    if (t < T - 1) {
-      test_traj.get_control_dependencies_initial_state_projection(t, Ux);
-      test_traj.get_control_dependencies_terminal_state_projection(t, Uz);
-      test_traj.get_control_dependencies_affine_term(t, U1);
-      Eigen::VectorXd temp2 = Ux * (-x0) + U1;
-      if (term_dim > 0) {
-        temp2 += Uz * (-xT);
-      }
-      std::cout << "u: " << temp2.transpose() << std::endl;
-    }
+//  parent_traj.child_trajectories[l-2].get_state_dependencies_initial_state_projection(parent_traj.child_trajectory_lengths[l-2]-1, Tx);
+//  parent_traj.child_trajectories[l-2].get_state_dependencies_terminal_state_projection(parent_traj.child_trajectory_lengths[l-2]-1, Tz);
+//  parent_traj.child_trajectories[l-2].get_state_dependencies_affine_term(parent_traj.child_trajectory_lengths[l-2]-1, T1);
+//  temp = Tx * (-x0) + T1;
+//  if (term_dim > 0) {
+//    temp += Tz * (-xT);
+//  }
+//  std::cout<<temp.transpose()<<std::endl;
+//
+//  parent_traj.child_trajectories[l-1].get_state_dependencies_initial_state_projection(parent_traj.child_trajectory_lengths[l-1]-1, Tx);
+//  parent_traj.child_trajectories[l-1].get_state_dependencies_terminal_state_projection(parent_traj.child_trajectory_lengths[l-1]-1, Tz);
+//  parent_traj.child_trajectories[l-1].get_state_dependencies_affine_term(parent_traj.child_trajectory_lengths[l-1]-1, T1);
+//  temp = Tx * (-x0) + T1;
+//  if (term_dim > 0) {
+//    temp += Tz * (-xT);
+//  }
+//  std::cout<<temp.transpose()<<std::endl;
 
-    test_traj.get_dynamics_mult_initial_state_feedback_term(t, Tx);
-    test_traj.get_dynamics_mult_terminal_state_feedback_term(t, Tz);
-    test_traj.get_dynamics_mult_feedforward_term(t, T1);
+//  for (int i = 0; i < test_traj.soln_size; ++i) {
+//    std::cout<<test_traj.B[i]<<" ";
+//  }
+//  std::cout<<std::endl;
 
-    Eigen::VectorXd lam = Tx * (-x0) + T1;
-    if (term_dim > 0) {
-      lam += Tz * (-xT);
-    }
-    std::cout << "Lam " << t << " = " << lam.transpose() << std::endl;
-
-    Vxx = test_traj.cost_to_go_hessians_state_state[t];
-    Vzx = test_traj.cost_to_go_hessians_terminal_state[t];
-    Vzz = test_traj.cost_to_go_hessians_terminal_terminal[t];
-    Vx1 = test_traj.cost_to_go_gradients_state[t];
-    Vz1 = test_traj.cost_to_go_gradients_terminal[t];
-    V11 = test_traj.cost_to_go_offsets[t];
-    Eigen::VectorXd lam2 = Vxx * x + Vx1;
-    if (term_dim > 0) {
-      lam2 += Vzx.transpose() * (-xT);
-    }
-    if (t < T - 1) {
-      test_traj.get_running_constraint_mult_initial_state_feedback_term(t, Ux);
-      test_traj.get_running_constraint_mult_terminal_state_feedback_term(t, Uz);
-      test_traj.get_running_constraint_mult_feedforward_term(t, U1);
-
-      Eigen::VectorXd mu = Ux * (-x0) + U1;
-      if (term_dim > 0) {
-        mu += Uz * (-xT);
-      }
-      std::cout << "Mu " << t << " = " << mu.transpose() << std::endl;
-    } else {
-      test_traj.get_terminal_constraint_mult_initial_state_feedback_term(Ux);
-      test_traj.get_terminal_constraint_mult_terminal_state_feedback_term(Uz);
-      test_traj.get_terminal_constraint_mult_feedforward_term(U1);
-      Eigen::VectorXd mu = Ux * (-x0) + U1;
-      if (term_dim > 0) {
-        mu += Uz * (-xT);
-      }
-      std::cout << "Mu " << t << " = " << mu.transpose() << std::endl;
-    }
-  }
-  std::cout << "Serial time: " << t1 - t0 << std::endl;
+  std::cout << "Serial time: " << total_serial_time << std::endl;
+  std::cout << "Parallel time: " << total_parallel_time << std::endl;
+  std::cout << "Banded time: " << total_banded_time << std::endl;
 
 //  std::cout << "x0: " << x0 << std::endl;
 //  for (int tt = 0; tt < T; ++tt) {
@@ -261,230 +504,6 @@ TEST(TestTrajectory, LQRSimple) {
 //    }
 //  }
 }
-
-//TEST(TestTrajectory, LQRSplit) {
-//  const int TT = 9;
-//  const int T = 5;
-//  Eigen::MatrixXd A(n, n);
-//  Eigen::MatrixXd B(n, m);
-//  Eigen::VectorXd c(n);
-//  Eigen::VectorXd r(m);
-//  A << 1.0, 1.0, 0.0, 1.0;
-//  B << 0.0, 0.1;
-//  c << 1.0, 1.0;
-//  r << 1.0;
-//  Eigen::VectorXd x0(n);
-//  x0 << 5.0, 1.0;
-//
-//  std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)> dynamics_f = dynamics;
-//  std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)>
-//      running_constraint_f = running_constraint;
-//  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> final_constraint_f = final_constraint;
-//  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> initial_constraint_f = initial_constraint;
-//  std::function<double(const Eigen::VectorXd *, const Eigen::VectorXd *)> running_cost_f = running_cost;
-//  std::function<double(const Eigen::VectorXd *)> terminal_cost_f = terminal_cost;
-//
-//  trajectory::Trajectory test_traj1(T,
-//                                    n,
-//                                    m,
-//                                    1,
-//                                    &dynamics_f,
-//                                    &running_constraint_f,
-//                                    &final_constraint_f,
-//                                    &initial_constraint_f,
-//                                    &running_cost_f,
-//                                    &terminal_cost_f);
-//
-//  trajectory::Trajectory test_traj2(T,
-//                                    n,
-//                                    m,
-//                                    1,
-//                                    &dynamics_f,
-//                                    &running_constraint_f,
-//                                    &final_constraint_f,
-//                                    &initial_constraint_f,
-//                                    &running_cost_f,
-//                                    &terminal_cost_f);
-//
-//  const Eigen::MatrixXd Inn = Eigen::MatrixXd::Identity(n, n);
-//  const Eigen::MatrixXd Imm = Eigen::MatrixXd::Identity(m, m);
-//  const Eigen::VectorXd Zn = Eigen::VectorXd::Zero(n);
-//  test_traj1.set_initial_constraint_jacobian_state(&Inn);
-//  test_traj1.set_initial_constraint_affine_term(&x0);
-//  test_traj2.set_initial_constraint_jacobian_state(&Inn);
-//  test_traj2.set_initial_constraint_affine_term(&x0);
-//
-//  test_traj1.set_initial_constraint_dimension(n);
-//  test_traj1.set_terminal_constraint_dimension(n);
-//  test_traj2.set_initial_constraint_dimension(n);
-//  test_traj2.set_terminal_constraint_dimension(n);
-//
-////  Eigen::VectorXd xT(n);
-////  xT << 44.0, -4.0;
-//
-//  for (unsigned int t = 0; t < T - 1; ++t) {
-//    test_traj1.set_dynamics_jacobian_state(t, &A);
-//    test_traj1.set_dynamics_jacobian_control(t, &B);
-//    test_traj1.set_dynamics_affine_term(t, &c);
-//    test_traj1.set_num_active_constraints(t, 0);
-//
-//    test_traj1.set_hamiltonian_hessians_state_state(t, &Inn);
-//    test_traj1.set_hamiltonian_hessians_control_control(t, &Imm);
-//    test_traj1.set_hamiltonian_gradients_state(t, &c);
-//    test_traj1.set_hamiltonian_gradients_control(t, &r);
-//
-//    test_traj2.set_dynamics_jacobian_state(t, &A);
-//    test_traj2.set_dynamics_jacobian_control(t, &B);
-//    test_traj2.set_dynamics_affine_term(t, &c);
-//    test_traj2.set_num_active_constraints(t, 0);
-//
-//    test_traj2.set_hamiltonian_hessians_state_state(t, &Inn);
-//    test_traj2.set_hamiltonian_hessians_control_control(t, &Imm);
-//    test_traj2.set_hamiltonian_gradients_state(t, &c);
-//    test_traj2.set_hamiltonian_gradients_control(t, &r);
-//  }
-//  test_traj2.set_terminal_cost_hessians_state_state(&Inn);
-//  test_traj2.set_terminal_cost_gradient_state(&c);
-//
-//  test_traj1.set_terminal_constraint_jacobian_state(&Inn);
-//  test_traj1.set_terminal_constraint_jacobian_terminal_projection(&Inn);
-//  test_traj1.set_terminal_constraint_affine_term(&Zn);
-//
-//  test_traj2.set_terminal_constraint_jacobian_state(&Inn);
-//  test_traj2.set_terminal_constraint_jacobian_terminal_projection(&Inn);
-//  test_traj2.set_terminal_constraint_affine_term(&Zn);
-//
-//  test_traj1.compute_feedback_policies();
-//  test_traj1.compute_state_control_dependencies();
-//  test_traj1.compute_multipliers();
-//
-//  test_traj2.compute_feedback_policies();
-//  test_traj2.compute_state_control_dependencies();
-//  test_traj2.compute_multipliers();
-//
-//  Eigen::MatrixXd Traj1X1(n, n);
-//  Eigen::MatrixXd Traj1X2(n, n);
-//  Eigen::VectorXd Traj11(n);
-//
-//  Eigen::MatrixXd Traj2X1(n, n);
-//  Eigen::MatrixXd Traj2X2(n, n);
-//  Eigen::VectorXd Traj21(n);
-//
-//  Eigen::MatrixXd Ux;
-//  Eigen::MatrixXd Uz;
-//  Eigen::VectorXd U1;
-//
-//  test_traj1.get_terminal_constraint_mult_initial_state_feedback_term(Ux);
-//  test_traj1.get_terminal_constraint_mult_terminal_state_feedback_term(Uz);
-//  test_traj1.get_terminal_constraint_mult_feedforward_term(U1);
-//
-//  Traj11 = U1 + Ux * (-x0);
-//  Traj1X1 = Uz;
-//
-//  test_traj2.get_dynamics_mult_initial_state_feedback_term(0, Ux);
-//  test_traj2.get_dynamics_mult_terminal_state_feedback_term(0, Uz);
-//  test_traj2.get_dynamics_mult_feedforward_term(0, U1);
-//
-//  Traj11 = (Traj11 + U1).eval();
-//  Traj1X1 = (Traj1X1 + Ux).eval();
-//  Traj1X2 = Uz;
-//
-//  test_traj2.get_terminal_constraint_mult_initial_state_feedback_term(Traj2X1);
-//  test_traj2.get_terminal_constraint_mult_terminal_state_feedback_term(Traj2X2);
-//  test_traj2.get_terminal_constraint_mult_feedforward_term(Traj21);
-//
-//  Eigen::MatrixXd Mat(2 * n, 2 * n);
-//  Eigen::VectorXd vec(2 * n);
-//  Mat << Traj1X1, Traj1X2, Traj2X1, Traj2X2;
-//  vec << Traj11, Traj21;
-//
-//  Eigen::PartialPivLU<Eigen::MatrixXd> decomp(Mat);
-//  Eigen::VectorXd soln = -decomp.solve(vec);
-//  std::cout << soln.transpose() << std::endl;
-//}
-//
-//TEST(TestTrajectory, LQRSplit2) {
-//  const int TT = 100;
-//  const int T = 5;
-//  const int num_trajs = 4;
-//  Eigen::MatrixXd A(n, n);
-//  Eigen::MatrixXd B(n, m);
-//  Eigen::VectorXd c(n);
-//  Eigen::VectorXd r(m);
-//  A << 1.0, 1.0, 0.0, 1.0;
-//  B << 0.0, 0.1;
-//  c << 1.0, 1.0;
-//  r << 1.0;
-//  Eigen::VectorXd x0(n);
-//  x0 << 5.0, 1.0;
-//
-//  const Eigen::MatrixXd Inn = Eigen::MatrixXd::Identity(n, n);
-//  const Eigen::MatrixXd Imm = Eigen::MatrixXd::Identity(m, m);
-//  const Eigen::VectorXd Zn = Eigen::VectorXd::Zero(n);
-//
-//  std::vector<Eigen::MatrixXd> AA(num_trajs, A);
-//  std::vector<Eigen::MatrixXd> BB(num_trajs, B);
-//  std::vector<Eigen::VectorXd> cc(num_trajs, c);
-//  std::vector<Eigen::VectorXd> rr(num_trajs, r);
-//
-//  std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)> dynamics_f = dynamics;
-//  std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, Eigen::VectorXd &)>
-//      running_constraint_f = running_constraint;
-//  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> final_constraint_f = final_constraint;
-//  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> initial_constraint_f = initial_constraint;
-//  std::function<double(const Eigen::VectorXd *, const Eigen::VectorXd *)> running_cost_f = running_cost;
-//  std::function<double(const Eigen::VectorXd *)> terminal_cost_f = terminal_cost;
-//
-//  parent_trajectory::ParentTrajectory parent_traj = parent_trajectory::ParentTrajectory(TT,
-//                                                                                        n,
-//                                                                                        m,
-//                                                                                        n,
-//                                                                                        0,
-//                                                                                        0,
-//                                                                                        &dynamics_f,
-//                                                                                        &running_constraint_f,
-//                                                                                        &final_constraint_f,
-//                                                                                        &initial_constraint_f,
-//                                                                                        &running_cost_f,
-//                                                                                        &terminal_cost_f);
-//  parent_traj.initial_state = x0;
-//  parent_traj.setNumChildTrajectories(num_trajs);
-//  parent_traj.initializeChildTrajectories();
-//
-//  for (int i = 0; i < num_trajs; ++i) {
-//    parent_traj.child_trajectories[i].set_initial_constraint_dimension(n);
-//    parent_traj.child_trajectories[i].set_initial_constraint_jacobian_state(&Inn);
-//    parent_traj.child_trajectories[i].set_initial_constraint_affine_term(&Zn);
-//    for (unsigned int t = 0; t < parent_traj.child_trajectory_lengths[i] - 1; ++t) {
-//      parent_traj.child_trajectories[i].set_dynamics_jacobian_state(t, &AA[i]);
-//      parent_traj.child_trajectories[i].set_dynamics_jacobian_control(t, &BB[i]);
-//      parent_traj.child_trajectories[i].set_dynamics_affine_term(t, &cc[i]);
-//      parent_traj.child_trajectories[i].set_num_active_constraints(t, 0);
-//      parent_traj.child_trajectories[i].set_hamiltonian_hessians_state_state(t, &Inn);
-//      parent_traj.child_trajectories[i].set_hamiltonian_hessians_control_control(t, &Imm);
-//      parent_traj.child_trajectories[i].set_hamiltonian_gradients_state(t, &cc[i]);
-//      parent_traj.child_trajectories[i].set_hamiltonian_gradients_control(t, &rr[i]);
-//    }
-//    if (i < num_trajs - 1) {
-//      parent_traj.child_trajectories[i].set_terminal_constraint_dimension(n);
-//      parent_traj.child_trajectories[i].set_terminal_constraint_jacobian_state(&Inn);
-//      parent_traj.child_trajectories[i].set_terminal_constraint_jacobian_terminal_projection(&Inn);
-//      parent_traj.child_trajectories[i].set_terminal_constraint_affine_term(&Zn);
-//    } else {
-//      parent_traj.child_trajectories[i].set_terminal_constraint_dimension(0);
-//      parent_traj.child_trajectories[i].set_terminal_cost_hessians_state_state(&Inn);
-//      parent_traj.child_trajectories[i].set_terminal_cost_gradient_state(&c);
-//    }
-//  }
-//  double t0 = omp_get_wtime();
-//  parent_traj.performChildTrajectoryCalculations();
-//  parent_traj.solveForChildTrajectoryLinkPoints();
-//  double t1 = omp_get_wtime();
-//  for (unsigned int t = 0; t < parent_traj.num_child_trajectories - 1; ++t) {
-//    std::cout << parent_traj.child_trajectory_link_points[t].transpose() << std::endl;
-//  }
-//  std::cout << "Parallel Time: " << t1 - t0 << std::endl;
-//}
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
