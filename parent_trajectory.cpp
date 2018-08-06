@@ -107,8 +107,9 @@ void ParentTrajectory::performChildTrajectoryCalculations() {
     double t2 = omp_get_wtime();
     this->child_trajectories[t].compute_multipliers();
     double t3 = omp_get_wtime();
-//    std::cout<<"FB and traj: "<<t2 - t0<<std::endl;
-//    std::cout<<"Mults: " << t3-t2<<std::endl;
+    std::cout<<"FB: "<<t1 - t0<<std::endl;
+    std::cout<<"traj: "<<t2-t1<<std::endl;
+    std::cout<<"Mults: " << t3-t2<<std::endl;
   }
 }
 

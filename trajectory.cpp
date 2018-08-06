@@ -10,8 +10,16 @@
 
 namespace trajectory {
 
-extern "C" void dgbsv_(int* N, int* KL, int* KU, int* NRHS, double* AB, int* LDAB, int* IPIV, double* B, int* LDB, int* INFO);
-
+extern "C" void dgbsv_(int *N,
+                       int *KL,
+                       int *KU,
+                       int *NRHS,
+                       double *AB,
+                       int *LDAB,
+                       int *IPIV,
+                       double *B,
+                       int *LDB,
+                       int *INFO);
 
 void Trajectory::populate_derivative_terms() {
   // Evaluate derivatives, numerically or analytically, and populate corresponding terms.
@@ -119,12 +127,14 @@ void Trajectory::populate_bandsolve_terms() {
       (2 * this->trajectory_length * this->state_dimension + (this->trajectory_length - 1) * this->control_dimension
           + total_active_constraints);
 
-  long primal_size = this->trajectory_length * this->state_dimension + (this->trajectory_length - 1) * this->control_dimension;
+  long primal_size =
+      this->trajectory_length * this->state_dimension + (this->trajectory_length - 1) * this->control_dimension;
   long dual_size_1 = this->trajectory_length * this->state_dimension;
   long dual_size_2 = total_active_constraints;
 
   // todo: this might be wrong
-  this->half_bandwidth = (int)  std::max(2*this->state_dimension + this->control_dimension, this->state_dimension + this->control_dimension + max_constraint_size) - 1;
+  this->half_bandwidth = (int) std::max(2 * this->state_dimension + this->control_dimension,
+                                        this->state_dimension + this->control_dimension + max_constraint_size) - 1;
   this->A.resize(this->soln_size, this->soln_size);
   this->B.resize((unsigned long) this->soln_size);
 
@@ -141,35 +151,35 @@ void Trajectory::populate_bandsolve_terms() {
   d2 = Eigen::VectorXd::Zero(dual_size_2);
   k = Eigen::VectorXd::Zero(primal_size);
   K = Eigen::MatrixXd::Zero(primal_size, primal_size);
-  I = Eigen::MatrixXd::Identity(n,n);
+  I = Eigen::MatrixXd::Identity(n, n);
 
   int primal_offset = 0;
   int dual_offset_1 = 0;
   int dual_offset_2 = 0;
   d1.segment(dual_offset_1, n) = -this->initial_constraint_affine_term;
-  std::cout<<"Made it here"<<std::endl;
+  std::cout << "Made it here" << std::endl;
 
-  for (int t=0; t<this->trajectory_length - 1; ++t) {
+  for (int t = 0; t < this->trajectory_length - 1; ++t) {
     K.block(primal_offset, primal_offset, n, n) = this->hamiltonian_hessians_state_state[t];
-    K.block(primal_offset+n, primal_offset, m, n) = this->hamiltonian_hessians_control_state[t];
-    K.block(primal_offset, primal_offset+n, n, m) = this->hamiltonian_hessians_control_state[t].transpose();
-    K.block(primal_offset+n, primal_offset+n, m,m) = this->hamiltonian_hessians_control_control[t];
+    K.block(primal_offset + n, primal_offset, m, n) = this->hamiltonian_hessians_control_state[t];
+    K.block(primal_offset, primal_offset + n, n, m) = this->hamiltonian_hessians_control_state[t].transpose();
+    K.block(primal_offset + n, primal_offset + n, m, m) = this->hamiltonian_hessians_control_control[t];
     k.segment(primal_offset, n) = -this->hamiltonian_gradients_state[t];
-    k.segment(primal_offset+n, m) = -this->hamiltonian_gradients_control[t];
+    k.segment(primal_offset + n, m) = -this->hamiltonian_gradients_control[t];
 
     D1.block(dual_offset_1, primal_offset, n, n) = I;
-    D1.block(dual_offset_1+n, primal_offset, n, n) = -this->dynamics_jacobians_state[t];
-    D1.block(dual_offset_1+n, primal_offset+n, n, m) = -this->dynamics_jacobians_control[t];
-    d1.segment(dual_offset_1+n, n) = this->dynamics_affine_terms[t];
+    D1.block(dual_offset_1 + n, primal_offset, n, n) = -this->dynamics_jacobians_state[t];
+    D1.block(dual_offset_1 + n, primal_offset + n, n, m) = -this->dynamics_jacobians_control[t];
+    d1.segment(dual_offset_1 + n, n) = this->dynamics_affine_terms[t];
     dual_offset_1 += n;
 
     int l = this->num_active_constraints[t];
     D2.block(dual_offset_2, primal_offset, l, n) = this->running_constraint_jacobians_state[t].topRows(l);
-    D2.block(dual_offset_2, primal_offset+n, l, m) = this->running_constraint_jacobians_control[t].topRows(l);
+    D2.block(dual_offset_2, primal_offset + n, l, m) = this->running_constraint_jacobians_control[t].topRows(l);
     d2.segment(dual_offset_2, l) = -this->running_constraint_affine_terms[t].head(l);
     dual_offset_2 += l;
 
-    primal_offset += (n+m);
+    primal_offset += (n + m);
   }
   K.block(primal_offset, primal_offset, n, n) = this->terminal_cost_hessians_state_state;
   k.segment(primal_offset, n) = -this->terminal_cost_gradient_state;
@@ -186,7 +196,7 @@ void Trajectory::populate_bandsolve_terms() {
   tempA << K, D1.transpose(), D2.transpose(), D1, Z1, D2, Z2;
   tempB << k, d1, d2;
 
-  std::cout<<"Made it here"<<std::endl;
+  std::cout << "Made it here" << std::endl;
 
   // Setup permutation vector
   Eigen::VectorXi permutation = Eigen::VectorXi::Zero(this->soln_size);
@@ -194,7 +204,7 @@ void Trajectory::populate_bandsolve_terms() {
   dual_offset_1 = (int) primal_size;
   dual_offset_2 = (int) (primal_size + dual_size_1);
   int perm_offset = 0;
-  for (int t = 0; t < this->trajectory_length-1; ++t) {
+  for (int t = 0; t < this->trajectory_length - 1; ++t) {
     for (int i = 0; i < n; ++i, ++perm_offset) {
       permutation(perm_offset) = dual_offset_1 + i;
     }
@@ -204,10 +214,10 @@ void Trajectory::populate_bandsolve_terms() {
       permutation(perm_offset) = dual_offset_2 + i;
     }
     dual_offset_2 += la;
-    for (int i = 0; i < n+m; ++i, ++perm_offset) {
+    for (int i = 0; i < n + m; ++i, ++perm_offset) {
       permutation(perm_offset) = primal_offset + i;
     }
-    primal_offset += (n+m);
+    primal_offset += (n + m);
   }
   for (int i = 0; i < n; ++i, ++perm_offset) {
     permutation(perm_offset) = dual_offset_1 + i;
@@ -225,19 +235,19 @@ void Trajectory::populate_bandsolve_terms() {
   this->A = perm.transpose() * tempA * perm;
   tempB = (perm.transpose() * tempB).eval();
 
-  for (int t = 0; t<this->soln_size; ++t) {
+  for (int t = 0; t < this->soln_size; ++t) {
     this->B[t] = tempB(t);
   }
 
-  int LDAB = 3*this->half_bandwidth + 1;
+  int LDAB = 3 * this->half_bandwidth + 1;
 
   this->AB.resize((unsigned long) LDAB * this->soln_size);
 
   int abi;
   for (int j = 1; j <= this->soln_size; ++j) {
-    for (int i = std::max(1, j-this->half_bandwidth); i <= std::min(this->soln_size, j+this->half_bandwidth); ++i) {
-      abi = 2*this->half_bandwidth+1+i-j;
-      this->AB[(abi-1)+(j-1)*LDAB] = this->A(i-1, j-1);
+    for (int i = std::max(1, j - this->half_bandwidth); i <= std::min(this->soln_size, j + this->half_bandwidth); ++i) {
+      abi = 2 * this->half_bandwidth + 1 + i - j;
+      this->AB[(abi - 1) + (j - 1) * LDAB] = this->A(i - 1, j - 1);
     }
   }
 }
@@ -247,13 +257,13 @@ void Trajectory::bandsolve_traj() {
   int KL = this->half_bandwidth;
   int KU = this->half_bandwidth;
   int NRHS = 1;
-  int LDAB = 3*this->half_bandwidth + 1;
+  int LDAB = 3 * this->half_bandwidth + 1;
   int IPIV[this->soln_size];
   int LDB = std::max(1, this->soln_size);
   int INFO;
 
-  dgbsv_(&N, &KL, &KU, &NRHS, & *this->AB.begin(), &LDAB, IPIV, & *this->B.begin(), &LDB, &INFO);
-  std::cout<<"Bandsolve successful? "<<INFO<<std::endl;
+  dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
+  std::cout << "Bandsolve successful? " << INFO << std::endl;
 }
 
 void Trajectory::compute_feedback_policies() {
@@ -296,7 +306,8 @@ void Trajectory::compute_feedback_policies() {
 
   for (int t = this->trajectory_length - 2; t >= 0; --t) {
     double z_norms = Vzx.norm();
-    this->implicit_terminal_terms_needed[t] = (((z_norms > 1e-6) or Gz.size() > 0) and this->implicit_terminal_constraint_dimension > 0);
+    this->implicit_terminal_terms_needed[t] =
+        (((z_norms > 1e-6) or Gz.size() > 0) and this->implicit_terminal_constraint_dimension > 0);
 
 //    this->implicit_terminal_terms_needed[t]
     this->auxiliary_constraints_present[t] = ((this->num_active_constraints[t] + G1.size()) > 0);
@@ -427,13 +438,17 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
                     this->implicit_terminal_constraint_dimension,
                     this->state_dimension);
     Muu =
-        BIG.block(1 + this->state_dimension, 1 + this->state_dimension, this->control_dimension, this->control_dimension);
+        BIG.block(1 + this->state_dimension,
+                  1 + this->state_dimension,
+                  this->control_dimension,
+                  this->control_dimension);
     Mzu = BIG.block(1 + this->state_dimension + this->control_dimension,
                     1 + this->state_dimension,
                     this->implicit_terminal_constraint_dimension,
                     this->control_dimension);
     Mzz =
-        BIG.bottomRightCorner(this->implicit_terminal_constraint_dimension, this->implicit_terminal_constraint_dimension);
+        BIG.bottomRightCorner(this->implicit_terminal_constraint_dimension,
+                              this->implicit_terminal_constraint_dimension);
   } else {
     Eigen::MatrixXd BIG
         (1 + this->state_dimension + this->control_dimension,
@@ -448,7 +463,10 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
     Mxx = BIG.block(1, 1, this->state_dimension, this->state_dimension);
     Mux = BIG.block(1 + this->state_dimension, 1, this->control_dimension, this->state_dimension);
     Muu =
-        BIG.block(1 + this->state_dimension, 1 + this->state_dimension, this->control_dimension, this->control_dimension);
+        BIG.block(1 + this->state_dimension,
+                  1 + this->state_dimension,
+                  this->control_dimension,
+                  this->control_dimension);
   }
 
   long constraint_size = num_active_constraints + G1.size();
@@ -514,7 +532,6 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
         Gz << Nz.bottomRows(constraint_size - constraint_rank);
         Nz.conservativeResize(constraint_rank, Eigen::NoChange);
       }
-
 
       const Eigen::MatrixXd VlSi = -V_Nu_l * Si_Nu;
       if (constraint_rank >= this->control_dimension) { // constraint_rank == control_dimension
@@ -593,7 +610,8 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
     Vxx = VIG.block(1, 1, this->state_dimension, this->state_dimension);
     Vzx = VIG.block(1 + this->state_dimension, 1, this->implicit_terminal_constraint_dimension, this->state_dimension);
     Vzz =
-        VIG.bottomRightCorner(this->implicit_terminal_constraint_dimension, this->implicit_terminal_constraint_dimension);
+        VIG.bottomRightCorner(this->implicit_terminal_constraint_dimension,
+                              this->implicit_terminal_constraint_dimension);
   } else {
     Eigen::MatrixXd VIG(1 + this->state_dimension,
                         1 + this->state_dimension);
@@ -848,11 +866,18 @@ void Trajectory::compute_multipliers() {
 void Trajectory::compute_state_control_dependencies() {
   const unsigned int n = this->state_dimension;
   const unsigned int li = this->implicit_terminal_constraint_dimension;
+  bool initial_implicit = this->initial_constraint.is_implicit();
   const unsigned int T = this->trajectory_length;
+  bool initial_depencence = true;
 
   Eigen::PartialPivLU<Eigen::MatrixXd> dec(this->initial_constraint_jacobian_state);
-  this->state_dependencies_initial_state_projection[0] = -dec.solve(Eigen::MatrixXd::Identity(n, n));
-  this->state_dependencies_affine_term[0] = Eigen::VectorXd::Zero(n);
+  if (initial_implicit) {
+    this->state_dependencies_initial_state_projection[0] = -dec.solve(Eigen::MatrixXd::Identity(n, n));
+    this->state_dependencies_affine_term[0] = Eigen::VectorXd::Zero(n);
+  } else {
+    this->state_dependencies_initial_state_projection[0] = Eigen::MatrixXd::Zero(n, n);
+    this->state_dependencies_affine_term[0] = -dec.solve(this->initial_constraint_affine_term);
+  }
   this->state_dependencies_terminal_state_projection[0] = Eigen::MatrixXd::Zero(n, li);
 
   for (unsigned int t = 0; t < T - 1; ++t) {
@@ -861,21 +886,34 @@ void Trajectory::compute_state_control_dependencies() {
     const auto &Au = this->dynamics_jacobians_control[t];
     const auto &A1 = this->dynamics_affine_terms[t];
     const auto &Kx = this->current_state_feedback_matrices[t];
-    const auto &Kz = this->terminal_state_feedback_matrices[t].leftCols(li);
     const auto &K1 = this->feedforward_controls[t];
     const auto &Mx = this->state_dependencies_initial_state_projection[t];
-    const auto &Mz = this->state_dependencies_terminal_state_projection[t].leftCols(li);
     const auto &M1 = this->state_dependencies_affine_term[t];
-    // Recursively update control dependencies
-    this->control_dependencies_initial_state_projection[t] = Kx * Mx;
-    this->control_dependencies_terminal_state_projection[t].leftCols(li) = Kx * Mz + Kz;
-    this->control_dependencies_affine_term[t] = Kx * M1 + K1;
-    // Recursively update state dependencies
-    this->state_dependencies_initial_state_projection[t + 1] =
-        Ax * Mx + Au * this->control_dependencies_initial_state_projection[t];
-    this->state_dependencies_terminal_state_projection[t + 1].leftCols(li) =
-        Ax * Mz + Au * this->control_dependencies_terminal_state_projection[t].leftCols(li);
-    this->state_dependencies_affine_term[t + 1] = Ax * M1 + Au * this->control_dependencies_affine_term[t] + A1;
+
+    if (li > 0) {
+      const auto &Kz = this->terminal_state_feedback_matrices[t].leftCols(li);
+      const auto &Mz = this->state_dependencies_terminal_state_projection[t].leftCols(li);
+      this->control_dependencies_terminal_state_projection[t].leftCols(li) = Kx * Mz + Kz;
+      this->state_dependencies_terminal_state_projection[t + 1].leftCols(li) =
+          Ax * Mz + Au * this->control_dependencies_terminal_state_projection[t].leftCols(li);
+    }
+    if (initial_implicit) {
+      // Recursively update control dependencies
+      this->control_dependencies_initial_state_projection[t] = Kx * Mx;
+      this->control_dependencies_affine_term[t] = Kx * M1 + K1;
+      // Recursively update state dependencies
+
+      this->state_dependencies_initial_state_projection[t + 1] =
+          Ax * Mx + Au * this->control_dependencies_initial_state_projection[t];
+      this->state_dependencies_affine_term[t + 1] = Ax * M1 + Au * this->control_dependencies_affine_term[t] + A1;
+
+    } else {
+      this->control_dependencies_affine_term[t] = Kx * (M1 + Mx * this->initial_constraint_affine_term) + K1;
+      // Recursively update state dependencies
+      this->state_dependencies_affine_term[t + 1] = Ax * (M1 + Mx * this->initial_constraint_affine_term) + Au
+          * (this->control_dependencies_affine_term[t]
+              + this->control_dependencies_initial_state_projection[t] * this->initial_constraint_affine_term) + A1;
+    }
   }
 }
 

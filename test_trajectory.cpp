@@ -35,10 +35,10 @@ int omp_get_num_procs(void) {return 1;}
 
 namespace test_trajectory {
 
-const int n = 9;
-const int m = 2;
-const int T = 100;
-const int l = 4;
+const int n = 32;
+const int m = 10;
+const int T = 5000;
+const int l = 3;
 const int runs = 10;
 
 const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(n, n);
@@ -239,22 +239,25 @@ TEST(TestTrajectory, LQRSimple) {
 
 
   std::cout << "Starting computation" << std::endl;
-  double total_serial_time = 1.0;
-  double total_parallel_time = 1.0;
-  double total_banded_time = 1.0;
+  double total_serial_time = 10000.0;
+  double total_parallel_time = 10000.0;
+  double total_banded_time = 10000.0;
 
 
-  double t0, t1;
+  double t0, t1, t2, t3, t4;
   for (int run = 0; run < runs; ++run) {
     test_traj.populate_derivative_terms();
     t0 = omp_get_wtime();
     test_traj.compute_feedback_policies();
-    test_traj.compute_state_control_dependencies();
-    test_traj.compute_multipliers();
     t1 = omp_get_wtime();
-//    total_serial_time += (t1-t0);
-    total_serial_time = std::min(t1-t0, total_serial_time);
-//    std::cout<<"FB time: "<<t1-t0<<std::endl;
+    test_traj.compute_state_control_dependencies();
+    t2 = omp_get_wtime();
+    test_traj.compute_multipliers();
+    t3 = omp_get_wtime();
+    total_serial_time = std::min(t3-t0, total_serial_time);
+    std::cout<<"FB time: "<<t1-t0<<std::endl;
+    std::cout<<"traj time: "<<t2-t1<<std::endl;
+    std::cout<<"mult time: "<<t3-t2<<std::endl;
 
     parent_traj.initial_state = x0;
     parent_traj.setNumChildTrajectories(l);
