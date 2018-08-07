@@ -107,9 +107,44 @@ void ParentTrajectory::performChildTrajectoryCalculations() {
     double t2 = omp_get_wtime();
     this->child_trajectories[t].compute_multipliers();
     double t3 = omp_get_wtime();
-    std::cout<<"FB: "<<t1 - t0<<std::endl;
-    std::cout<<"traj: "<<t2-t1<<std::endl;
-    std::cout<<"Mults: " << t3-t2<<std::endl;
+//    std::cout<<"FB: "<<t1 - t0<<std::endl;
+//    std::cout<<"traj: "<<t2-t1<<std::endl;
+//    std::cout<<"Mults: " << t3-t2<<std::endl;
+  }
+}
+
+void ParentTrajectory::populateDerivativeTerms() {
+#pragma omp parallel for num_threads(this->num_child_trajectories)
+  for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
+    double t0 = omp_get_wtime();
+    this->child_trajectories[t].compute_feedback_policies();
+    double t1 = omp_get_wtime();
+    this->child_trajectories[t].compute_state_control_dependencies();
+    double t2 = omp_get_wtime();
+    this->child_trajectories[t].compute_multipliers();
+    double t3 = omp_get_wtime();
+
+  }
+}
+
+void ParentTrajectory::calculateFeedbackPolicies() {
+#pragma omp parallel for num_threads(this->num_child_trajectories)
+  for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
+    this->child_trajectories[t].compute_feedback_policies();
+  }
+}
+
+void ParentTrajectory::computeStateAndControlDependencies() {
+#pragma omp parallel for num_threads(this->num_child_trajectories)
+  for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
+    this->child_trajectories[t].compute_state_control_dependencies();
+  }
+}
+
+void ParentTrajectory::computeMultipliers() {
+#pragma omp parallel for num_threads(this->num_child_trajectories)
+  for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
+    this->child_trajectories[t].compute_multipliers();
   }
 }
 

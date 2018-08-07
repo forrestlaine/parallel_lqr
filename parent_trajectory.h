@@ -65,6 +65,14 @@ class ParentTrajectory {
 
   void performChildTrajectoryCalculations();
 
+  void populateDerivativeTerms();
+
+  void calculateFeedbackPolicies();
+
+  void computeStateAndControlDependencies();
+
+  void computeMultipliers();
+
   void solveForChildTrajectoryLinkPoints();
 
   void updateChildTrajectories();

@@ -37,9 +37,9 @@ namespace test_trajectory {
 
 const int n = 32;
 const int m = 10;
-const int T = 5000;
-const int l = 3;
-const int runs = 10;
+const int T = 4;
+const int l = 2;
+const int runs = 100;
 
 const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(n, n);
 const Eigen::MatrixXd R = Eigen::MatrixXd::Identity(m, m);
@@ -168,13 +168,14 @@ TEST(TestTrajectory, LQRSimple) {
   endpoint_constraint::EndPointConstraint
       terminal_constraint_obj = endpoint_constraint::EndPointConstraint(&terminal_constraint_f,
                                                                         &terminal_constraint_jac_f,
-                                                                        0,
+                                                                        n,
                                                                         true);
+
   endpoint_constraint::EndPointConstraint
       initial_constraint_obj = endpoint_constraint::EndPointConstraint(&initial_constraint_f,
                                                                        &initial_constraint_jac_f,
                                                                        n,
-                                                                       false);
+                                                                       true);
   running_constraint::RunningConstraint
       running_constraint_obj = running_constraint::RunningConstraint(&running_constraint_f,
                                                                      &running_constraint_jac_x_f,
@@ -239,10 +240,19 @@ TEST(TestTrajectory, LQRSimple) {
 
 
   std::cout << "Starting computation" << std::endl;
-  double total_serial_time = 10000.0;
-  double total_parallel_time = 10000.0;
-  double total_banded_time = 10000.0;
+  double min_serial_time = 10000.0;
+  double min_parallel_time = 10000.0;
+  double min_banded_time = 10000.0;
+  double min_pfb_time = 10000.0;
+  double min_ptr_time = 10000.0;
+  double min_pmu_time = 10000.0;
 
+  double avg_serial_time = 0.0;
+  double avg_parallel_time = 0.0;
+  double avg_banded_time = 0.0;
+  double avg_pfb_time = 0.0;
+  double avg_ptr_time = 0.0;
+  double avg_pmu_time = 0.0;
 
   double t0, t1, t2, t3, t4;
   for (int run = 0; run < runs; ++run) {
@@ -254,29 +264,55 @@ TEST(TestTrajectory, LQRSimple) {
     t2 = omp_get_wtime();
     test_traj.compute_multipliers();
     t3 = omp_get_wtime();
-    total_serial_time = std::min(t3-t0, total_serial_time);
-    std::cout<<"FB time: "<<t1-t0<<std::endl;
-    std::cout<<"traj time: "<<t2-t1<<std::endl;
-    std::cout<<"mult time: "<<t3-t2<<std::endl;
+    min_serial_time = std::min(t3-t0, min_serial_time);
+    avg_serial_time += (t3-t0);
+//    std::cout<<"FB time: "<<t1-t0<<std::endl;
+//    std::cout<<"traj time: "<<t2-t1<<std::endl;
+//    std::cout<<"mult time: "<<t3-t2<<std::endl;
 
     parent_traj.initial_state = x0;
     parent_traj.setNumChildTrajectories(l);
     parent_traj.initializeChildTrajectories();
     parent_traj.populateChildDerivativeTerms();
     t0 = omp_get_wtime();
-    parent_traj.performChildTrajectoryCalculations();
-    parent_traj.solveForChildTrajectoryLinkPoints();
+//    parent_traj.performChildTrajectoryCalculations();
+    parent_traj.calculateFeedbackPolicies();
     t1 = omp_get_wtime();
-    total_parallel_time = std::min( t1-t0, total_parallel_time);
+    parent_traj.computeStateAndControlDependencies();
+    t2 = omp_get_wtime();
+    parent_traj.computeMultipliers();
+    t3 = omp_get_wtime();
+    parent_traj.solveForChildTrajectoryLinkPoints();
+    t4 = omp_get_wtime();
+    min_parallel_time = std::min( t4-t0, min_parallel_time);
+    avg_parallel_time += (t4-t0);
+
+    min_pfb_time = std::min( t1-t0, min_pfb_time);
+    avg_pfb_time += (t1-t0);
+
+    min_ptr_time = std::min( t2-t1, min_ptr_time);
+    avg_ptr_time += (t2-t1);
+
+    min_pmu_time = std::min( t3-t2, min_pmu_time);
+    avg_pmu_time += (t3-t2);
+
   }
 
+  avg_serial_time /= runs;
+  avg_parallel_time /= runs;
+  avg_pfb_time /= runs;
+  avg_pmu_time /= runs;
+  avg_ptr_time /= runs;
 //  total_serial_time = total_serial_time / runs;
 //  total_parallel_time = total_parallel_time / runs;
 
 
 //  test_traj.populate_bandsolve_terms();
 //  for (int run = 0; run < runs; ++run) {
+//    t0 = omp_get_wtime();
 //    test_traj.bandsolve_traj();
+//    t1 = omp_get_wtime();
+//    std::cout<<"Band time : " <<t1-t0<<std::endl;
 //  }
 //
 
@@ -469,9 +505,12 @@ TEST(TestTrajectory, LQRSimple) {
 //  }
 //  std::cout<<std::endl;
 
-  std::cout << "Serial time: " << total_serial_time << std::endl;
-  std::cout << "Parallel time: " << total_parallel_time << std::endl;
-  std::cout << "Banded time: " << total_banded_time << std::endl;
+  std::cout << "Serial time: " << min_serial_time << ","<<avg_serial_time<<std::endl;
+  std::cout << "Parallel time: " << min_parallel_time << ","<<avg_parallel_time<<std::endl;
+  std::cout << "Parallel fb time: " << min_pfb_time << ","<<avg_pfb_time<<std::endl;
+  std::cout << "Parallel tr time: " << min_ptr_time << ","<<avg_ptr_time<<std::endl;
+  std::cout << "Parallel mu time: " << min_pmu_time << ","<<avg_pmu_time<<std::endl;
+  std::cout << "Banded time: " << min_banded_time << ","<<avg_banded_time<<std::endl;
 
 //  std::cout << "x0: " << x0 << std::endl;
 //  for (int tt = 0; tt < T; ++tt) {

@@ -305,9 +305,10 @@ void Trajectory::compute_feedback_policies() {
   Eigen::VectorXd N1 = Eigen::MatrixXd::Zero(n, 1);
 
   for (int t = this->trajectory_length - 2; t >= 0; --t) {
-    double z_norms = Vzx.norm();
-    this->implicit_terminal_terms_needed[t] =
-        (((z_norms > 1e-6) or Gz.size() > 0) and this->implicit_terminal_constraint_dimension > 0);
+//    double z_norms = Vzx.norm();
+//    this->implicit_terminal_terms_needed[t] =
+//        (((z_norms > 1e-6) or Gz.size() > 0) and this->implicit_terminal_constraint_dimension > 0);
+    this->implicit_terminal_terms_needed[t] = true;
 
 //    this->implicit_terminal_terms_needed[t]
     this->auxiliary_constraints_present[t] = ((this->num_active_constraints[t] + G1.size()) > 0);
@@ -631,8 +632,6 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
 //  Eigen::MatrixXd CL = (*Ax) + (*Au) * Lx;
 //  Eigen::EigenSolver<Eigen::MatrixXd> eigensolver(CL);
 //  std::cout<<"Eigenvalues of cl system are: " << eigensolver.eigenvalues().transpose()<<std::endl;
-
-
 }
 
 void Trajectory::compute_multipliers() {
