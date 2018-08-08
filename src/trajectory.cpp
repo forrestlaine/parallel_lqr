@@ -262,7 +262,7 @@ void Trajectory::bandsolve_traj() {
   int LDB = std::max(1, this->soln_size);
   int INFO;
 
-  dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
+  //dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
   std::cout << "Bandsolve successful? " << INFO << std::endl;
 }
 

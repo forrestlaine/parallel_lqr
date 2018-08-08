@@ -5,7 +5,7 @@
 #ifndef MOTORBOAT_NUMERICAL_GRADIENT_H
 #define MOTORBOAT_NUMERICAL_GRADIENT_H
 
-#include "Eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Dense"
 
 namespace numerical_gradient {
 

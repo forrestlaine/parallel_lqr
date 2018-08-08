@@ -5,7 +5,7 @@
 #ifndef MOTORBOAT_TERMINAL_COST_H
 #define MOTORBOAT_TERMINAL_COST_H
 
-#include "Eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Dense"
 
 namespace terminal_cost {
 

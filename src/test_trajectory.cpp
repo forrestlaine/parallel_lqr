@@ -6,7 +6,7 @@
 #include <vector>
 #include "trajectory.h"
 #include "parent_trajectory.h"
-#include <Eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 
 #include "dynamics.h"
 #include "running_constraint.h"
@@ -34,8 +34,8 @@ int omp_get_num_procs(void) {return 1;}
 
 const int n = 32;
 const int m = 10;
-const int T = 40;
-const int l = 0;
+const int T = 1000;
+const int l = 64;
 const int runs = 100;
 
 const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(n, n);
@@ -165,14 +165,14 @@ void RunTrajectoryTest() {
   endpoint_constraint::EndPointConstraint
       terminal_constraint_obj = endpoint_constraint::EndPointConstraint(&terminal_constraint_f,
                                                                         &terminal_constraint_jac_f,
-                                                                        n,
-                                                                        true);
+                                                                        0,
+                                                                        false);
 
   endpoint_constraint::EndPointConstraint
       initial_constraint_obj = endpoint_constraint::EndPointConstraint(&initial_constraint_f,
                                                                        &initial_constraint_jac_f,
                                                                        n,
-                                                                       true);
+                                                                       false);
   running_constraint::RunningConstraint
       running_constraint_obj = running_constraint::RunningConstraint(&running_constraint_f,
                                                                      &running_constraint_jac_x_f,
@@ -216,9 +216,16 @@ void RunTrajectoryTest() {
   double min_serial_time = 10000.0;
   double min_parallel_time = 10000.0;
   double min_banded_time = 10000.0;
+  double max_serial_time = 0.;
+  double max_parallel_time = 0.;
   double min_pfb_time = 10000.0;
   double min_ptr_time = 10000.0;
   double min_pmu_time = 10000.0;
+  double min_solve_time = 100000.;
+  double max_pfb_time = 0.;
+  double max_ptr_time = 0.;
+  double max_pmu_time = 0.;
+  double max_solve_time = 0.;
 
   double avg_serial_time = 0.0;
   double avg_parallel_time = 0.0;
@@ -226,6 +233,7 @@ void RunTrajectoryTest() {
   double avg_pfb_time = 0.0;
   double avg_ptr_time = 0.0;
   double avg_pmu_time = 0.0;
+  double avg_solve_time = 0.;
 
   double t0, t1, t2, t3, t4;
   for (int run = 0; run < runs; ++run) {
@@ -239,35 +247,41 @@ void RunTrajectoryTest() {
     t3 = omp_get_wtime();
     min_serial_time = std::min(t3-t0, min_serial_time);
     avg_serial_time += (t3-t0);
-//    std::cout<<"FB time: "<<t1-t0<<std::endl;
-//    std::cout<<"traj time: "<<t2-t1<<std::endl;
-//    std::cout<<"mult time: "<<t3-t2<<std::endl;
+    max_serial_time = std::max(t3-t0, max_serial_time);
 
     parent_traj.initial_state = x0;
     parent_traj.SetNumChildTrajectories(l);
     parent_traj.InitializeChildTrajectories();
     parent_traj.PopulateChildDerivativeTerms();
     t0 = omp_get_wtime();
-//    parent_traj.PerformChildTrajectoryCalculations();
-    parent_traj.CalculateFeedbackPolicies();
+    parent_traj.PerformChildTrajectoryCalculations();
+    //parent_traj.CalculateFeedbackPolicies();
     t1 = omp_get_wtime();
-    parent_traj.ComputeStateAndControlDependencies();
+    //parent_traj.ComputeStateAndControlDependencies();
     t2 = omp_get_wtime();
-    parent_traj.ComputeMultipliers();
+    //parent_traj.ComputeMultipliers();
     t3 = omp_get_wtime();
     parent_traj.SolveForChildTrajectoryLinkPoints();
     t4 = omp_get_wtime();
     min_parallel_time = std::min( t4-t0, min_parallel_time);
     avg_parallel_time += (t4-t0);
+    max_parallel_time = std::max(t4-t0, max_parallel_time);
 
     min_pfb_time = std::min( t1-t0, min_pfb_time);
     avg_pfb_time += (t1-t0);
+    max_pfb_time = std::max( t1-t0, max_pfb_time);
 
     min_ptr_time = std::min( t2-t1, min_ptr_time);
     avg_ptr_time += (t2-t1);
+    max_ptr_time = std::max( t2-t1, max_ptr_time);
 
     min_pmu_time = std::min( t3-t2, min_pmu_time);
     avg_pmu_time += (t3-t2);
+    max_pmu_time = std::max( t3-t2, max_pmu_time);
+
+    min_solve_time = std::min(t4-t3, min_solve_time);
+    avg_solve_time += (t4-t3);
+    max_solve_time = std::max(t4-t3, max_solve_time);
 
   }
 
@@ -276,6 +290,7 @@ void RunTrajectoryTest() {
   avg_pfb_time /= runs;
   avg_pmu_time /= runs;
   avg_ptr_time /= runs;
+  avg_solve_time /= runs;
 
 
 //  test_traj.populate_bandsolve_terms();
@@ -466,11 +481,12 @@ void RunTrajectoryTest() {
 //  std::cout<<std::endl;
 
   std::cout<<"Num cores: " <<l<<std::endl;
-  std::cout << "Serial time: " << min_serial_time << ","<<avg_serial_time<<std::endl;
-  std::cout << "Parallel time: " << min_parallel_time << ","<<avg_parallel_time<<std::endl;
-  std::cout << "Parallel fb time: " << min_pfb_time << ","<<avg_pfb_time<<std::endl;
-  std::cout << "Parallel tr time: " << min_ptr_time << ","<<avg_ptr_time<<std::endl;
-  std::cout << "Parallel mu time: " << min_pmu_time << ","<<avg_pmu_time<<std::endl;
+  std::cout << "Serial time: " << min_serial_time << ","<<avg_serial_time<<","<<max_serial_time<<std::endl;
+  std::cout << "Parallel time: " << min_parallel_time << ","<<avg_parallel_time<<","<<max_parallel_time<<std::endl;
+  std::cout << "Parallel fb time: " << min_pfb_time << ","<<avg_pfb_time<<","<<max_pfb_time<<std::endl;
+  std::cout << "Parallel tr time: " << min_ptr_time << ","<<avg_ptr_time<<","<<max_ptr_time<<std::endl;
+  std::cout << "Parallel mu time: " << min_pmu_time << ","<<avg_pmu_time<<","<<max_pmu_time<<std::endl;
+  std::cout << "Parallel solve time: " << min_solve_time << ","<<avg_solve_time<<","<<max_solve_time<<std::endl;
   std::cout << "Banded time: " << min_banded_time << ","<<avg_banded_time<<std::endl;
 
 //  std::cout << "x0: " << x0 << std::endl;

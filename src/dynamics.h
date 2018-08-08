@@ -5,7 +5,7 @@
 #ifndef MOTORBOAT_DYNAMICS_H
 #define MOTORBOAT_DYNAMICS_H
 
-#include "Eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Dense"
 
 namespace dynamics {
 

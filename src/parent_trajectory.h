@@ -6,7 +6,7 @@
 #define MOTORBOAT_PARENT_TRAJECTORY_H
 
 #include <vector>
-#include "Eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Dense"
 #include "trajectory.h"
 
 #include "dynamics.h"

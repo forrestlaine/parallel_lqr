@@ -6,8 +6,7 @@
 #define MOTORBOAT_TRAJECTORY_H
 
 #include <vector>
-#include "Eigen3/Eigen/Dense"
-#include "gtest/gtest.h"
+#include "eigen3/Eigen/Dense"
 
 #include "dynamics.h"
 #include "running_constraint.h"

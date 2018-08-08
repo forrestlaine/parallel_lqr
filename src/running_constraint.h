@@ -5,7 +5,7 @@
 #ifndef MOTORBOAT_RUNNING_CONSTRAINT_H
 #define MOTORBOAT_RUNNING_CONSTRAINT_H
 
-#include "Eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Dense"
 
 namespace running_constraint {
 
