@@ -57,25 +57,25 @@ class ParentTrajectory {
 
   ~ParentTrajectory() = default;
 
-  void setNumChildTrajectories(unsigned int num_threads);
+  void SetNumChildTrajectories(unsigned int num_threads);
 
-  void populateChildDerivativeTerms();
+  void PopulateChildDerivativeTerms();
 
-  void initializeChildTrajectories();
+  void InitializeChildTrajectories();
 
-  void performChildTrajectoryCalculations();
+  void PerformChildTrajectoryCalculations();
 
-  void populateDerivativeTerms();
+  void PopulateDerivativeTerms();
 
-  void calculateFeedbackPolicies();
+  void CalculateFeedbackPolicies();
 
-  void computeStateAndControlDependencies();
+  void ComputeStateAndControlDependencies();
 
-  void computeMultipliers();
+  void ComputeMultipliers();
 
-  void solveForChildTrajectoryLinkPoints();
+  void SolveForChildTrajectoryLinkPoints();
 
-  void updateChildTrajectories();
+  void UpdateChildTrajectories();
 
   std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
       simple_end_point_constraint = [](const Eigen::VectorXd *x, Eigen::VectorXd &val) {

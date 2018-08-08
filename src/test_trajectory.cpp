@@ -6,7 +6,6 @@
 #include <vector>
 #include "trajectory.h"
 #include "parent_trajectory.h"
-#include "gtest/gtest.h"
 #include <Eigen3/Eigen/Dense>
 
 #include "dynamics.h"
@@ -33,12 +32,10 @@ void omp_set_num_threads(int) {}
 int omp_get_num_procs(void) {return 1;}
 #endif
 
-namespace test_trajectory {
-
 const int n = 32;
 const int m = 10;
-const int T = 4;
-const int l = 2;
+const int T = 40;
+const int l = 0;
 const int runs = 100;
 
 const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(n, n);
@@ -153,8 +150,8 @@ std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen:
 std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::MatrixXd &)>
     running_constraint_jac_u_f = [](const Eigen::VectorXd *x, const Eigen::VectorXd *u, int t, Eigen::MatrixXd &Ju) {};
 
-TEST(TestTrajectory, LQRSimple) {
 
+void RunTrajectoryTest() {
   dynamics::Dynamics dynamics_obj = dynamics::Dynamics(&dynamics_f, &dynamics_jac_x_f, &dynamics_jac_u_f);
   running_cost::RunningCost running_cost_obj = running_cost::RunningCost(&running_cost_f,
                                                                          &running_grad_x_f,
@@ -210,34 +207,10 @@ TEST(TestTrajectory, LQRSimple) {
   test_traj.populate_derivative_terms();
   std::cout << "Made terms serial" << std::endl;
   parent_traj.initial_state = x0;
-  parent_traj.setNumChildTrajectories(l);
-  parent_traj.initializeChildTrajectories();
-  parent_traj.populateChildDerivativeTerms();
+  parent_traj.SetNumChildTrajectories(l);
+  parent_traj.InitializeChildTrajectories();
+  parent_traj.PopulateChildDerivativeTerms();
   std::cout << "Made terms parallel" << std::endl;
-
-//  std::cout<<test_traj.hamiltonian_hessians_state_state[0]<<std::endl<<std::endl;
-//  std::cout<<test_traj.hamiltonian_hessians_control_control[0]<<std::endl<<std::endl;
-//  std::cout<<test_traj.hamiltonian_hessians_control_state[0]<<std::endl<<std::endl;
-//
-//  std::cout<<test_traj.dynamics_jacobians_state[0]<<std::endl<<std::endl;
-//  std::cout<<test_traj.dynamics_jacobians_control[0]<<std::endl<<std::endl;
-//  std::cout<<test_traj.dynamics_affine_terms[0]<<std::endl<<std::endl;
-//
-//  std::cout<<test_traj.dynamics_jacobians_state[T-2]<<std::endl<<std::endl;
-//  std::cout<<test_traj.dynamics_jacobians_control[T-2]<<std::endl<<std::endl;
-//  std::cout<<test_traj.dynamics_affine_terms[T-2]<<std::endl<<std::endl;
-//
-//  std::cout<<test_traj.hamiltonian_hessians_state_state[T-2]<<std::endl<<std::endl;
-//  std::cout<<test_traj.hamiltonian_hessians_control_control[T-2]<<std::endl<<std::endl;
-//  std::cout<<test_traj.hamiltonian_hessians_control_state[T-2]<<std::endl<<std::endl;
-//
-//  std::cout<<test_traj.terminal_cost_hessians_state_state<<std::endl<<std::endl;
-//  std::cout<<test_traj.terminal_cost_gradient_state<<std::endl<<std::endl;
-
-
-
-
-
 
   std::cout << "Starting computation" << std::endl;
   double min_serial_time = 10000.0;
@@ -271,18 +244,18 @@ TEST(TestTrajectory, LQRSimple) {
 //    std::cout<<"mult time: "<<t3-t2<<std::endl;
 
     parent_traj.initial_state = x0;
-    parent_traj.setNumChildTrajectories(l);
-    parent_traj.initializeChildTrajectories();
-    parent_traj.populateChildDerivativeTerms();
+    parent_traj.SetNumChildTrajectories(l);
+    parent_traj.InitializeChildTrajectories();
+    parent_traj.PopulateChildDerivativeTerms();
     t0 = omp_get_wtime();
-//    parent_traj.performChildTrajectoryCalculations();
-    parent_traj.calculateFeedbackPolicies();
+//    parent_traj.PerformChildTrajectoryCalculations();
+    parent_traj.CalculateFeedbackPolicies();
     t1 = omp_get_wtime();
-    parent_traj.computeStateAndControlDependencies();
+    parent_traj.ComputeStateAndControlDependencies();
     t2 = omp_get_wtime();
-    parent_traj.computeMultipliers();
+    parent_traj.ComputeMultipliers();
     t3 = omp_get_wtime();
-    parent_traj.solveForChildTrajectoryLinkPoints();
+    parent_traj.SolveForChildTrajectoryLinkPoints();
     t4 = omp_get_wtime();
     min_parallel_time = std::min( t4-t0, min_parallel_time);
     avg_parallel_time += (t4-t0);
@@ -303,8 +276,6 @@ TEST(TestTrajectory, LQRSimple) {
   avg_pfb_time /= runs;
   avg_pmu_time /= runs;
   avg_ptr_time /= runs;
-//  total_serial_time = total_serial_time / runs;
-//  total_parallel_time = total_parallel_time / runs;
 
 
 //  test_traj.populate_bandsolve_terms();
@@ -315,17 +286,6 @@ TEST(TestTrajectory, LQRSimple) {
 //    std::cout<<"Band time : " <<t1-t0<<std::endl;
 //  }
 //
-
-//  std::cout<<parent_traj.child_trajectories[1].hamiltonian_hessians_state_state[0]<<std::endl<<std::endl;
-//  std::cout<<parent_traj.child_trajectories[1].hamiltonian_hessians_control_state[0]<<std::endl<<std::endl;
-//  std::cout<<parent_traj.child_trajectories[1].hamiltonian_hessians_control_control[0]<<std::endl<<std::endl;
-//
-//  std::cout<<parent_traj.child_trajectories[1].terminal_cost_hessians_state_state<<std::endl<<std::endl;
-//
-//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_jacobian_terminal_projection<<std::endl<<std::endl;
-//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_jacobian_state<<std::endl<<std::endl;
-//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_affine_term<<std::endl<<std::endl;
-//  std::cout<<parent_traj.child_trajectories[1].terminal_constraint_dimension<<std::endl;
 
   Eigen::VectorXd x(n);
   Eigen::VectorXd u(m);
@@ -549,7 +509,6 @@ TEST(TestTrajectory, LQRSimple) {
 }
 
 int main(int argc, char **argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+  RunTrajectoryTest();
+  return 0;
 }
