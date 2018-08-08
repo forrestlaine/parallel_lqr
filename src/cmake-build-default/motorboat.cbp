@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="motorboat"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;CMake Files\..\;CMake Files\..\..\;CMake Files\..\..\..\;CMake Files\..\..\..\..\;CMake Files\..\..\..\..\..\;CMake Files\..\..\..\..\..\..\;CMake Files\..\..\..\..\..\..\usr\;CMake Files\..\..\..\..\..\..\usr\local\;CMake Files\..\..\..\..\..\..\usr\local\share\;CMake Files\..\..\..\..\..\..\usr\local\share\eigen3\;CMake Files\..\..\..\..\..\..\usr\local\share\eigen3\cmake\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="test">
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 test"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="test_trajectory">
+				<Option output="/Users/4est/code/research/motorboat/src/cmake-build-default/test_trajectory" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/x86_64-apple-darwin17.5.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/backward"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 test_trajectory"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="test_trajectory/fast">
+				<Option output="/Users/4est/code/research/motorboat/src/cmake-build-default/test_trajectory" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/x86_64-apple-darwin17.5.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/backward"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 test_trajectory/fast"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="motorboat">
+				<Option output="/Users/4est/code/research/motorboat/src/cmake-build-default/libmotorboat.dylib" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/local/include/eigen3"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/x86_64-apple-darwin17.5.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/backward"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 motorboat"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="motorboat/fast">
+				<Option output="/Users/4est/code/research/motorboat/src/cmake-build-default/libmotorboat.dylib" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/4est/code/research/motorboat/src/cmake-build-default"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/local/include/eigen3"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/x86_64-apple-darwin17.5.0"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/../../../../../../include/c++/8.1.0/backward"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/include"/>
+					<Add directory="/usr/local/Cellar/gcc/8.1.0/lib/gcc/8/gcc/x86_64-apple-darwin17.5.0/8.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 motorboat/fast"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/4est/code/research/motorboat/src/cmake-build-default/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/Users/4est/code/research/motorboat/src/dynamics.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/dynamics.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/endpoint_constraint.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/endpoint_constraint.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/numerical_gradient.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/numerical_gradient.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/parent_trajectory.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/parent_trajectory.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/running_constraint.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/running_constraint.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/running_cost.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/running_cost.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/terminal_cost.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/terminal_cost.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/test_trajectory.cpp">
+			<Option target="test_trajectory"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/trajectory.cpp">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/trajectory.h">
+			<Option target="test_trajectory"/>
+			<Option target="motorboat"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/../../../../../../usr/local/share/eigen3/cmake/Eigen3Config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\..\usr\local\share\eigen3\cmake\"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/../../../../../../usr/local/share/eigen3/cmake/Eigen3ConfigVersion.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\..\usr\local\share\eigen3\cmake\"/>
+		</Unit>
+		<Unit filename="/Users/4est/code/research/motorboat/src/../../../../../../usr/local/share/eigen3/cmake/Eigen3Targets.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\..\usr\local\share\eigen3\cmake\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>
