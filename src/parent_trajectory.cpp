@@ -50,6 +50,25 @@ void ParentTrajectory::SetNumChildTrajectories(unsigned int desired_num_threads)
       this->child_trajectory_lengths[t] += 1;
     }
   }
+  this->num_parallel_solvers = (unsigned int) std::floor(std::sqrt(this->num_child_trajectories));
+  this->meta_segment_lengths.resize(this->num_parallel_solvers);
+  this->meta_link_point_indices.resize(this->num_parallel_solvers-1);
+  unsigned int total_link_points = this->num_child_trajectories - 1;
+  unsigned int nominal_segment_length = (total_link_points - (this->num_parallel_solvers-1)) / this->num_parallel_solvers;
+  unsigned int remainder = (total_link_points - (this->num_parallel_solvers-1)) % this->num_parallel_solvers;
+  unsigned int link_points_so_far = 0;
+  for (int i = 0; i < this->num_parallel_solvers - 1; ++i) {
+    this->meta_segment_lengths[i] = nominal_segment_length;
+    if (remainder) {
+      this->meta_segment_lengths[i] += 1;
+      --remainder;
+    }
+    link_points_so_far += (this->meta_segment_lengths[i]+1);
+    this->meta_link_point_indices[i] = link_points_so_far;
+    std::cout<<this->meta_link_point_indices[i]<<",";
+  }
+  std::cout<<std::endl;
+  this->meta_segment_lengths[this->num_parallel_solvers-1] = nominal_segment_length;
 }
 
 void ParentTrajectory::InitializeChildTrajectories() {
@@ -57,7 +76,6 @@ void ParentTrajectory::InitializeChildTrajectories() {
 
     endpoint_constraint::EndPointConstraint *terminal_constraint_ptr =
         (t < this->num_child_trajectories - 1) ? &this->empty_terminal_constraint : &this->terminal_constraint;
-
 
     endpoint_constraint::EndPointConstraint *initial_constraint_ptr =
         (t > 0) ? &this->empty_terminal_constraint : &this->initial_constraint;
@@ -78,12 +96,18 @@ void ParentTrajectory::InitializeChildTrajectories() {
   this->link_point_dependencies_prev_link_point = std::vector<Eigen::MatrixXd>(this->num_child_trajectories - 1,
                                                                                Eigen::MatrixXd::Zero(this->state_dimension,
                                                                                                      this->state_dimension));
+  this->link_point_dependencies_prev_meta_link_point = std::vector<Eigen::MatrixXd>(this->num_child_trajectories - 1,
+                                                                                    Eigen::MatrixXd::Zero(this->state_dimension,
+                                                                                                          this->state_dimension));
   this->link_point_dependencies_same_link_point = std::vector<Eigen::MatrixXd>(this->num_child_trajectories - 1,
                                                                                Eigen::MatrixXd::Zero(this->state_dimension,
                                                                                                      this->state_dimension));
   this->link_point_dependencies_next_link_point = std::vector<Eigen::MatrixXd>(this->num_child_trajectories - 1,
                                                                                Eigen::MatrixXd::Zero(this->state_dimension,
                                                                                                      this->state_dimension));
+  this->link_point_dependencies_next_meta_link_point = std::vector<Eigen::MatrixXd>(this->num_child_trajectories - 1,
+                                                                                    Eigen::MatrixXd::Zero(this->state_dimension,
+                                                                                                          this->state_dimension));
   this->link_point_dependencies_affine_term = std::vector<Eigen::VectorXd>(this->num_child_trajectories - 1,
                                                                            Eigen::VectorXd::Zero(this->state_dimension));
   this->child_trajectory_link_points =
@@ -91,14 +115,14 @@ void ParentTrajectory::InitializeChildTrajectories() {
 }
 
 void ParentTrajectory::PopulateChildDerivativeTerms() {
-  #pragma omp parallel for num_threads(this->num_child_trajectories)
+#pragma omp parallel for num_threads(this->num_child_trajectories)
   for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
     this->child_trajectories[t].populate_derivative_terms();
   }
 }
 
 void ParentTrajectory::PerformChildTrajectoryCalculations() {
-  #pragma omp parallel for num_threads(this->num_child_trajectories)
+#pragma omp parallel for num_threads(this->num_child_trajectories)
   for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
     this->child_trajectories[t].compute_feedback_policies();
     this->child_trajectories[t].compute_state_control_dependencies();
@@ -141,7 +165,14 @@ void ParentTrajectory::ComputeMultipliers() {
   }
 }
 
-void ParentTrajectory::SolveForChildTrajectoryLinkPoints() {
+void ParentTrajectory::ParallelSolveForChildTrajectoryLinkPoints() {
+  #pragma omp parallel for num_threads(this->num_parallel_solvers)
+  for (unsigned int t = 0; t < this->num_parallel_solvers; ++t) {
+    this->SolveForChildTrajectoryLinkPoints(t);
+  }
+}
+
+void ParentTrajectory::SolveForChildTrajectoryLinkPoints(int meta_segment) {
 
   unsigned int num_unknown_link_points = this->num_child_trajectories - 1;
 

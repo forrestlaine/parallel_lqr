@@ -33,6 +33,7 @@ class ParentTrajectory {
                    const terminal_cost::TerminalCost *terminal_cost) :
       trajectory_length(trajectory_length),
       num_child_trajectories(1),
+      num_parallel_solvers(1),
       state_dimension(state_dimension),
       control_dimension(control_dimension),
       initial_constraint_dimension(initial_constraint_dimension),
@@ -73,7 +74,9 @@ class ParentTrajectory {
 
   void ComputeMultipliers();
 
-  void SolveForChildTrajectoryLinkPoints();
+  void ParallelSolveForChildTrajectoryLinkPoints();
+
+  void SolveForChildTrajectoryLinkPoints(int meta_segment);
 
   void UpdateChildTrajectories();
 
@@ -96,11 +99,13 @@ class ParentTrajectory {
  public:
   const unsigned int trajectory_length;
   unsigned int num_child_trajectories;
+  unsigned int num_parallel_solvers;
   const unsigned int state_dimension;
   const unsigned int control_dimension;
   const unsigned int initial_constraint_dimension;
   const unsigned int running_constraint_dimension;
   unsigned int terminal_constraint_dimension;
+
 
   Eigen::VectorXd initial_state;
   Eigen::VectorXd terminal_projection;
@@ -114,12 +119,16 @@ class ParentTrajectory {
 
   std::vector<trajectory::Trajectory> child_trajectories;
   std::vector<unsigned int> child_trajectory_lengths;
+  std::vector<unsigned int> meta_segment_lengths;
+  std::vector<unsigned int> meta_link_point_indices;
 
   std::vector<Eigen::VectorXd> child_trajectory_link_points;
 
   std::vector<Eigen::MatrixXd> link_point_dependencies_prev_link_point;
   std::vector<Eigen::MatrixXd> link_point_dependencies_same_link_point;
   std::vector<Eigen::MatrixXd> link_point_dependencies_next_link_point;
+  std::vector<Eigen::MatrixXd> link_point_dependencies_prev_meta_link_point;
+  std::vector<Eigen::MatrixXd> link_point_dependencies_next_meta_link_point;
   std::vector<Eigen::VectorXd> link_point_dependencies_affine_term;
 
   endpoint_constraint::EndPointConstraint empty_terminal_constraint;

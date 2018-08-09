@@ -261,7 +261,7 @@ void RunTrajectoryTest() {
     t2 = omp_get_wtime();
     //parent_traj.ComputeMultipliers();
     t3 = omp_get_wtime();
-    parent_traj.SolveForChildTrajectoryLinkPoints();
+    parent_traj.SolveForChildTrajectoryLinkPoints(0);
     t4 = omp_get_wtime();
     min_parallel_time = std::min( t4-t0, min_parallel_time);
     avg_parallel_time += (t4-t0);
