@@ -131,6 +131,10 @@ class ParentTrajectory {
   std::vector<Eigen::MatrixXd> link_point_dependencies_next_meta_link_point;
   std::vector<Eigen::VectorXd> link_point_dependencies_affine_term;
 
+  std::vector<Eigen::MatrixXd> meta_link_point_dependencies_prev_link_point;
+  std::vector<Eigen::MatrixXd> meta_link_point_dependencies_next_link_point;
+  std::vector<Eigen::VectorXd> meta_link_point_dependencies_affine_term;
+
   endpoint_constraint::EndPointConstraint empty_terminal_constraint;
   terminal_cost::TerminalCost empty_terminal_cost;
 
