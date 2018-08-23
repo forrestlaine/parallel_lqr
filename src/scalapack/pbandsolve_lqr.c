@@ -13,6 +13,9 @@
 #define MAX(a,b)((a)<(b)?(b):(a))
 #define MIN(a,b)((a)>(b)?(b):(a))
 
+#define MAXINT 100
+#define MININT -100
+
 /* Definition of matrix descriptor */
 typedef MKL_INT MDESC[ 9 ];
 
@@ -25,7 +28,6 @@ const char trans = 'N';
 /*==== MAIN FUNCTION =================================================*/
 int main(int argc, char *argv[]) {
 
-  srand(0);
 /*  ==== Declarations =================================================== */
 
 /*  File variables */
@@ -54,9 +56,10 @@ int main(int argc, char *argv[]) {
     and number of current process */
   blacs_pinfo_( &iam, &nprocs );
 
+  srand(iam);
 /*  Init temporary 1D process grid */
   blacs_get_( &i_negone, &i_zero, &ictxt_c );
-  blacs_gridinit_( &ictxt_c, "R", &i_one, &nprocs );
+  blacs_gridinit_( &ictxt_c, "R", &i_one, &nprocs  );
 
 /*  Open input file */
   if ( iam == 0 ) {
@@ -69,7 +72,7 @@ int main(int argc, char *argv[]) {
 
 /*  Read data and send it to all processes */
   if ( iam == 0 ) {
-
+    printf("Size of mkl int is %d\n", sizeof(MKL_INT));
 /*      Read parameters */
     fscanf( fin, "%d nx, dimension of state vectors, must be > 0 ", &nx_int );
     fscanf( fin, "%d nu, dimension of control vectors, must be > 0 ", &nu_int );
@@ -107,7 +110,7 @@ int main(int argc, char *argv[]) {
   }
 
   half_bw = (MKL_INT) (2*nx + nu - 1);
-  band_matrix_rows = (MKL_INT) (4*half_bw + 1);
+  band_matrix_rows = (MKL_INT) (2*half_bw + 1);
 
   if ( iam == 0 ) { fclose( fin ); }
   
@@ -116,7 +119,7 @@ int main(int argc, char *argv[]) {
     each process for parts of distributed vectors */
 
   local_size = numroc_( &total_size, &nominal_block_size, &mycol, &i_zero, &nprocs );
-  lwork = (MKL_INT) ((local_size+half_bw)*(2*half_bw)+6*(2*half_bw)*3*half_bw+(local_size+6*half_bw));
+  lwork = (MKL_INT) 10*((local_size+half_bw)*(2*half_bw)+6*(2*half_bw)*3*half_bw+(local_size+6*half_bw));
   
   printf(" Local size: %d\n", local_size);
   printf(" Total size: %d\n", total_size);
@@ -128,7 +131,7 @@ int main(int argc, char *argv[]) {
 
   int k;
   for (k = 0; k < local_size; ++k) {
-    b[k] = rand();
+    b[k] = MININT + rand() / (RAND_MAX / (MAXINT - MININT + 1.0) + 1.0);
   }
   int z, idx;
   idx = 0;
@@ -136,13 +139,14 @@ int main(int argc, char *argv[]) {
   for (k = 0; k < local_size; ++k) {
   	for (z = 0; z < band_matrix_rows; ++z) {
 		if( z > 2*half_bw) {
-			A[idx] = rand();
+			A[idx] = MININT + rand() / (RAND_MAX / (MAXINT - MININT + 1.0) + 1.0);
 		} else {
 			A[idx] = 0.;
 		}
 		idx += 1;
 	}
   }
+  blacs_barrier_(&ictxt_c, "A");
 /*  Initialize descriptors for distributed arrays */
   descA_b[0] = (MKL_INT) 501;
   descA_b[1] = ictxt_c;
@@ -166,11 +170,12 @@ int main(int argc, char *argv[]) {
   clock_t start = clock(), diff;
 
 
-  pdgbsv_( &total_size, &half_bw, &half_bw, &i_one, A, &i_one, descA_b, &ipiv, b, &i_one, descb_b, work, &lwork, &info );
+  //pdgbsv_( &total_size, &half_bw, &half_bw, &i_one, A, &i_one, descA_b, &ipiv, b, &i_one, descb_b, work, &lwork, &info );
+  pddbsv_( &total_size, &half_bw, &half_bw, &i_one, A, &i_one, descA_b, b, &i_one, descb_b, work, &lwork, &info );
   printf("made it out\n");
+  printf("info: %d\n", info); 
   printf("size needed: %d\n", work[0]);
   blacs_barrier_(&ictxt_c, "A");
-  printf("info: %d\n", info); 
   diff = clock() - start;
 
   int msec = diff * 1000 / CLOCKS_PER_SEC;
