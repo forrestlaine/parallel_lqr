@@ -1,0 +1,3 @@
+40		nx, dimension of state vectors, must be > 0
+12		nu, dimension of control vectors, must be > 0
+1000		T, trajectory length, must be > 0
