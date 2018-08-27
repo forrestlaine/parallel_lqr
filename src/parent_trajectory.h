@@ -78,6 +78,8 @@ class ParentTrajectory {
 
   void SolveForChildTrajectoryLinkPoints(int meta_segment);
 
+  void SetOpenLoopTrajectories();
+
   void UpdateChildTrajectories();
 
   std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)>
@@ -86,15 +88,15 @@ class ParentTrajectory {
   };
 
   std::function<void(const Eigen::VectorXd *,
-                            Eigen::MatrixXd &)> simple_end_point_constraint_jacobian = [](const Eigen::VectorXd *x,
+                            Eigen::MatrixXd &)> simple_end_point_constraint_jacobian = [](const Eigen::VectorXd *,
                                                                                           Eigen::MatrixXd &val) { val.setIdentity(); };
 
-  std::function<double(const Eigen::VectorXd *)> empty_cost = [](const Eigen::VectorXd *x) { return 0.0; };
+  std::function<double(const Eigen::VectorXd *)> empty_cost = [](const Eigen::VectorXd *) { return 0.0; };
 
 
-  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> empty_cost_gradient = [](const Eigen::VectorXd *x, Eigen::VectorXd &g) { g.setZero(); };
+  std::function<void(const Eigen::VectorXd *, Eigen::VectorXd &)> empty_cost_gradient = [](const Eigen::VectorXd *, Eigen::VectorXd &g) { g.setZero(); };
 
-  std::function<void(const Eigen::VectorXd *, Eigen::MatrixXd &)> empty_cost_hessian = [](const Eigen::VectorXd *x, Eigen::MatrixXd &H) { H.setZero(); };
+  std::function<void(const Eigen::VectorXd *, Eigen::MatrixXd &)> empty_cost_hessian = [](const Eigen::VectorXd *, Eigen::MatrixXd &H) { H.setZero(); };
 
  public:
   const unsigned int trajectory_length;
@@ -105,7 +107,6 @@ class ParentTrajectory {
   const unsigned int initial_constraint_dimension;
   const unsigned int running_constraint_dimension;
   unsigned int terminal_constraint_dimension;
-
 
   Eigen::VectorXd initial_state;
   Eigen::VectorXd terminal_projection;

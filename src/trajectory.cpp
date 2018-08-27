@@ -30,6 +30,10 @@ void Trajectory::populate_derivative_terms() {
   this->initial_constraint.eval_constraint_jacobian(&this->current_points[0], this->initial_constraint_jacobian_state);
   this->initial_constraint.eval_constraint(&this->current_points[0], this->initial_constraint_affine_term);
 
+  if ( not this->initial_constraint.is_implicit()) {
+    this->initial_state_projection = this->initial_constraint_affine_term;
+  }
+
   for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
     this->dynamics.eval_dynamics_jacobian_state(&this->current_points[t],
                                                 &this->current_controls[t],
@@ -110,6 +114,9 @@ void Trajectory::populate_derivative_terms() {
           ++d;
         }
       }
+    }
+    if (not this->terminal_constraint.is_implicit()) {
+      this->terminal_state_projection = this->terminal_constraint_affine_term;
     }
   }
   this->terminal_cost.eval_cost_hessian_state_state(&this->current_points[t], this->terminal_cost_hessians_state_state);
@@ -931,8 +938,8 @@ void Trajectory::set_open_loop_traj() {
       this->open_loop_controls[t] += this->control_dependencies_initial_state_projection[t] * x0;
     }
     if (li > 0) {
-      this->open_loop_states[t] += this->state_dependencies_terminal_state_projection[t].left_cols(li) * xT;
-      this->open_loop_controls[t] += this->control_dependencies_terminal_state_projection[t].left_cols(li) * xT;
+      this->open_loop_states[t] += this->state_dependencies_terminal_state_projection[t].leftCols(li) * xT;
+      this->open_loop_controls[t] += this->control_dependencies_terminal_state_projection[t].leftCols(li) * xT;
     }
   }
   this->open_loop_states[T-1] = this->state_dependencies_affine_term[T-1];

@@ -57,7 +57,7 @@ void ParentTrajectory::SetNumChildTrajectories(unsigned int desired_num_threads)
   unsigned int nominal_segment_length = (total_link_points - (this->num_parallel_solvers-1)) / this->num_parallel_solvers;
   unsigned int remainder = (total_link_points - (this->num_parallel_solvers-1)) % this->num_parallel_solvers;
   unsigned int link_points_so_far = 0;
-  for (int i = 0; i < this->num_parallel_solvers - 1; ++i) {
+  for (unsigned int i = 0; i < this->num_parallel_solvers - 1; ++i) {
     this->meta_segment_lengths[i] = nominal_segment_length;
     if (remainder) {
       this->meta_segment_lengths[i] += 1;
@@ -65,9 +65,7 @@ void ParentTrajectory::SetNumChildTrajectories(unsigned int desired_num_threads)
     }
     link_points_so_far += (this->meta_segment_lengths[i]+1);
     this->meta_link_point_indices[i] = link_points_so_far;
-    std::cout<<this->meta_link_point_indices[i]<<",";
   }
-  std::cout<<std::endl;
   this->meta_segment_lengths[this->num_parallel_solvers-1] = nominal_segment_length;
 }
 
@@ -133,14 +131,9 @@ void ParentTrajectory::PerformChildTrajectoryCalculations() {
 void ParentTrajectory::PopulateDerivativeTerms() {
 #pragma omp parallel for num_threads(this->num_child_trajectories)
   for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
-    double t0 = omp_get_wtime();
     this->child_trajectories[t].compute_feedback_policies();
-    double t1 = omp_get_wtime();
     this->child_trajectories[t].compute_state_control_dependencies();
-    double t2 = omp_get_wtime();
     this->child_trajectories[t].compute_multipliers();
-    double t3 = omp_get_wtime();
-
   }
 }
 
@@ -169,6 +162,13 @@ void ParentTrajectory::ParallelSolveForChildTrajectoryLinkPoints() {
   #pragma omp parallel for num_threads(this->num_parallel_solvers)
   for (unsigned int t = 0; t < this->num_parallel_solvers; ++t) {
     this->SolveForChildTrajectoryLinkPoints(t);
+  }
+}
+
+void ParentTrajectory::SetOpenLoopTrajectories() {
+#pragma omp parallel for num_threads(this->num_parallel_solvers)
+  for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
+    this->child_trajectories[t].set_open_loop_traj();
   }
 }
 
@@ -260,6 +260,11 @@ void ParentTrajectory::SolveForChildTrajectoryLinkPoints(int meta_segment) {
                 * this->child_trajectory_link_points[t - 1]).eval();
       }
     }
+  }
+
+  for (unsigned int t=0; t < num_unknown_link_points; ++t) {
+    this->child_trajectories[t].set_terminal_point(&this->child_trajectory_link_points[t]);
+    this->child_trajectories[t+1].set_initial_point(&this->child_trajectory_link_points[t]);
   }
 }
 
