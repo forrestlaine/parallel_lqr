@@ -43,6 +43,8 @@ class Trajectory {
       terminal_cost(*terminal_cost),
       current_points(trajectory_length, Eigen::VectorXd::Zero(state_dimension)),
       current_controls(trajectory_length - 1, Eigen::VectorXd::Zero(control_dimension)),
+      open_loop_states(trajectory_length, Eigen::VectorXd::Zero(state_dimension)),
+      open_loop_controls(trajectory_length - 1, Eigen::VectorXd::Zero(control_dimension)),
       num_active_constraints(trajectory_length, 0),
       active_running_constraints(trajectory_length - 1, Eigen::Matrix<bool, Eigen::Dynamic, 1>::Zero(running_constraint_dimension)),
       active_terminal_constraints(Eigen::Matrix<bool, Eigen::Dynamic, 1>::Zero(state_dimension)),
@@ -162,6 +164,8 @@ class Trajectory {
 
   void compute_state_control_dependencies();
 
+  void set_open_loop_traj();
+
   void compute_multipliers();
 
   // Setters
@@ -203,6 +207,8 @@ class Trajectory {
   void set_terminal_cost_gradient_state(const Eigen::VectorXd* Qx);
 
   void set_terminal_point(Eigen::VectorXd *terminal_projection);
+
+  void set_initial_point(Eigen::VectorXd *initial_projection);
 
   // Getters
 
@@ -255,6 +261,9 @@ class Trajectory {
 
   std::vector<Eigen::VectorXd> current_points;
   std::vector<Eigen::VectorXd> current_controls;
+
+  std::vector<Eigen::VectorXd> open_loop_states;
+  std::vector<Eigen::VectorXd> open_loop_controls;
 
   std::vector<unsigned int> num_active_constraints;
   std::vector<Eigen::Matrix<bool, Eigen::Dynamic, 1>> active_running_constraints;

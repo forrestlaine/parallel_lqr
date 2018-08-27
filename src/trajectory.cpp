@@ -867,7 +867,6 @@ void Trajectory::compute_state_control_dependencies() {
   const unsigned int li = this->implicit_terminal_constraint_dimension;
   bool initial_implicit = this->initial_constraint.is_implicit();
   const unsigned int T = this->trajectory_length;
-  bool initial_depencence = true;
 
   Eigen::PartialPivLU<Eigen::MatrixXd> dec(this->initial_constraint_jacobian_state);
   if (initial_implicit) {
@@ -916,10 +915,43 @@ void Trajectory::compute_state_control_dependencies() {
   }
 }
 
+void Trajectory::set_open_loop_traj() {
+  Eigen::VectorXd x0 = this->initial_state_projection;
+  Eigen::VectorXd xT = this->terminal_state_projection;
+  const unsigned int n = this->state_dimension;
+  const unsigned int li = this->implicit_terminal_constraint_dimension;
+  bool initial_implicit = this->initial_constraint.is_implicit();
+  const unsigned int T = this->trajectory_length;
+
+  for (int t=0; t<T-1; ++t) {
+    this->open_loop_states[t] = this->state_dependencies_affine_term[t];
+    this->open_loop_controls[t] = this->control_dependencies_affine_term[t];
+    if (initial_implicit) {
+      this->open_loop_states[t] += this->state_dependencies_initial_state_projection[t] * x0;
+      this->open_loop_controls[t] += this->control_dependencies_initial_state_projection[t] * x0;
+    }
+    if (li > 0) {
+      this->open_loop_states[t] += this->state_dependencies_terminal_state_projection[t].left_cols(li) * xT;
+      this->open_loop_controls[t] += this->control_dependencies_terminal_state_projection[t].left_cols(li) * xT;
+    }
+  }
+  this->open_loop_states[T-1] = this->state_dependencies_affine_term[T-1];
+  if (initial_implicit) {
+    this->open_loop_states[T-1] += this->state_dependencies_initial_state_projection[T-1]*x0;
+  }
+  if (li > 0) {
+    this->open_loop_states[T-1] += this->state_dependencies_terminal_state_projection[T-1]*xT;
+  }
+}
+
 // Setters
 
 void Trajectory::set_terminal_point(Eigen::VectorXd *terminal_projection) {
   this->terminal_state_projection = *terminal_projection;
+}
+
+void Trajectory::set_initial_point(Eigen::VectorXd *initial_projection) {
+  this->initial_state_projection =  *initial_projection;
 }
 
 void Trajectory::set_initial_constraint_dimension(unsigned int d) {
