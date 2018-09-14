@@ -11,7 +11,9 @@
 
 #include "dynamics.h"
 #include "running_constraint.h"
+#include "equality_constrained_running_constraint.h"
 #include "endpoint_constraint.h"
+#include "equality_constrained_endpoint_constraint.h"
 #include "running_cost.h"
 #include "terminal_cost.h"
 
@@ -27,8 +29,10 @@ class ParentTrajectory {
                    unsigned int terminal_constraint_dimension,
                    const dynamics::Dynamics *dynamics,
                    const running_constraint::RunningConstraint *running_constraint,
+                   const equality_constrained_running_constraint::EqualityConstrainedRunningConstraint *equality_constrained_running_constraint,
                    const endpoint_constraint::EndPointConstraint *terminal_constraint,
-                   const endpoint_constraint::EndPointConstraint *initial_constraint,
+                   const equality_constrained_endpoint_constraint::EqualityConstrainedEndPointConstraint *equality_constrained_terminal_constraint,
+                    const equality_constrained_endpoint_constraint::EqualityConstrainedEndPointConstraint *initial_constraint,
                    const running_cost::RunningCost *running_cost,
                    const terminal_cost::TerminalCost *terminal_cost) :
       trajectory_length(trajectory_length),
@@ -38,16 +42,22 @@ class ParentTrajectory {
       control_dimension(control_dimension),
       initial_constraint_dimension(initial_constraint_dimension),
       running_constraint_dimension(running_constraint_dimension),
+      ec_running_constraint_dimension((unsigned int) equality_constrained_running_constraint->get_constraint_dimension()),
       terminal_constraint_dimension(terminal_constraint_dimension),
+      ec_terminal_constraint_dimension((unsigned int) equality_constrained_terminal_constraint->get_constraint_dimension()),
       initial_state(Eigen::VectorXd::Zero(state_dimension)),
       terminal_projection(Eigen::VectorXd::Zero(terminal_constraint_dimension)),
       dynamics(*dynamics),
       running_constraint(*running_constraint),
+      equality_constrained_running_constraint(*equality_constrained_running_constraint),
       terminal_constraint(*terminal_constraint),
+      equality_constrained_terminal_constraint(*equality_constrained_terminal_constraint),
       initial_constraint(*initial_constraint),
       running_cost(*running_cost),
       terminal_cost(*terminal_cost),
       child_trajectories(std::vector<trajectory::Trajectory>()),
+      global_open_loop_states(trajectory_length, Eigen::VectorXd::Zero(state_dimension)),
+      global_open_loop_controls(trajectory_length-1, Eigen::VectorXd::Zero(control_dimension)),
       empty_terminal_constraint(&this->simple_end_point_constraint,
                                 &this->simple_end_point_constraint_jacobian,
                                 state_dimension,
@@ -106,15 +116,19 @@ class ParentTrajectory {
   const unsigned int control_dimension;
   const unsigned int initial_constraint_dimension;
   const unsigned int running_constraint_dimension;
+  const unsigned int ec_running_constraint_dimension;
   unsigned int terminal_constraint_dimension;
+  unsigned int ec_terminal_constraint_dimension;
 
   Eigen::VectorXd initial_state;
   Eigen::VectorXd terminal_projection;
 
   dynamics::Dynamics dynamics;
   running_constraint::RunningConstraint running_constraint;
+  equality_constrained_running_constraint::EqualityConstrainedRunningConstraint equality_constrained_running_constraint;
   endpoint_constraint::EndPointConstraint terminal_constraint;
-  endpoint_constraint::EndPointConstraint initial_constraint;
+  equality_constrained_endpoint_constraint::EqualityConstrainedEndPointConstraint equality_constrained_terminal_constraint;
+  equality_constrained_endpoint_constraint::EqualityConstrainedEndPointConstraint initial_constraint;
   running_cost::RunningCost running_cost;
   terminal_cost::TerminalCost terminal_cost;
 
@@ -122,6 +136,9 @@ class ParentTrajectory {
   std::vector<unsigned int> child_trajectory_lengths;
   std::vector<unsigned int> meta_segment_lengths;
   std::vector<unsigned int> meta_link_point_indices;
+
+  std::vector<Eigen::VectorXd> global_open_loop_states;
+  std::vector<Eigen::VectorXd> global_open_loop_controls;
 
   std::vector<Eigen::VectorXd> child_trajectory_link_points;
 
@@ -136,7 +153,7 @@ class ParentTrajectory {
   std::vector<Eigen::MatrixXd> meta_link_point_dependencies_next_link_point;
   std::vector<Eigen::VectorXd> meta_link_point_dependencies_affine_term;
 
-  endpoint_constraint::EndPointConstraint empty_terminal_constraint;
+  equality_constrained_endpoint_constraint::EqualityConstrainedEndPointConstraint empty_terminal_constraint;
   terminal_cost::TerminalCost empty_terminal_cost;
 
 };

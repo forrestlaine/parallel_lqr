@@ -61,7 +61,7 @@ class RunningConstraint {
 
   int get_constraint_dimension() const { return constraint_dimension; }
 
- private:
+ protected:
   std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::VectorXd &)> constraint;
   std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::MatrixXd &)> constraint_jacobian_state;
   std::function<void(const Eigen::VectorXd *, const Eigen::VectorXd *, int, Eigen::MatrixXd &)> constraint_jacobian_control;

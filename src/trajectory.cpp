@@ -21,54 +21,138 @@ extern "C" void dgbsv_(int *N,
                        int *LDB,
                        int *INFO);
 
+void Trajectory::execute_current_control_policy(double disturbance) {
+  const int li = this->implicit_terminal_constraint_dimension;
+  Eigen::VectorXd statediff = Eigen::VectorXd::Zero(this->state_dimension);
+  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
+    Eigen::VectorXd new_point;
+    this->current_controls[t] = this->current_controls[t] + this->current_state_feedback_matrices[t] * statediff
+        + this->feedforward_controls[t];
+    if (li > 0) {
+      this->current_controls[t] += this->terminal_state_feedback_matrices[t].leftCols(li) * this->lq_terminal_state;
+    }
+    this->dynamics.eval_dynamics(&this->current_points[t], &this->current_controls[t], new_point);
+    if (disturbance > 0.0) {
+      new_point(this->state_dimension-1) += disturbance;
+    }
+    statediff = new_point - current_points[t + 1];
+    current_points[t + 1] = new_point;
+  }
+}
+
+void Trajectory::execute_open_loop_policy() {
+  const int li = this->implicit_terminal_constraint_dimension;
+  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
+    Eigen::VectorXd new_point;
+    this->current_controls[t] = this->open_loop_controls[t];
+    if (li > 0) {
+      this->current_controls[t] += this->terminal_state_feedback_matrices[t].leftCols(li) * this->lq_terminal_state;
+    }
+    this->dynamics.eval_dynamics(&this->current_points[t], &this->current_controls[t], this->current_points[t+1]);
+  }
+}
+
+void Trajectory::execute_sanity_policy() {
+  this->sanity_states[0] = this->current_points[0];
+  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
+    Eigen::VectorXd new_point;
+    this->sanity_controls[t] = (this->sanity_controls[t] + this->current_controls[t]).eval();
+    this->dynamics.eval_dynamics(&this->sanity_states[t], &this->sanity_controls[t], this->sanity_states[t+1]);
+  }
+}
+
 void Trajectory::populate_derivative_terms() {
   // Evaluate derivatives, numerically or analytically, and populate corresponding terms.
-  Eigen::VectorXd temp_constraint;
-  Eigen::MatrixXd temp_jacobian_1(this->running_constraint_dimension, this->state_dimension);
-  Eigen::MatrixXd temp_jacobian_2(this->running_constraint_dimension, this->control_dimension);
+  Eigen::VectorXd temp_constraint(this->ec_running_constraint_dimension);
+  Eigen::MatrixXd temp_jacobian_1(this->ec_running_constraint_dimension, this->state_dimension);
+  Eigen::MatrixXd temp_jacobian_2(this->ec_running_constraint_dimension, this->control_dimension);
 
   this->initial_constraint.eval_constraint_jacobian(&this->current_points[0], this->initial_constraint_jacobian_state);
   this->initial_constraint.eval_constraint(&this->current_points[0], this->initial_constraint_affine_term);
 
-  if ( not this->initial_constraint.is_implicit()) {
-    this->initial_state_projection = this->initial_constraint_affine_term;
+  if (not this->initial_constraint.is_implicit()) {
+    this->lq_initial_state = this->initial_constraint_affine_term;
   }
 
   for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
+    temp_constraint.setZero();
+    temp_jacobian_1.setZero();
+    temp_jacobian_2.setZero();
     this->dynamics.eval_dynamics_jacobian_state(&this->current_points[t],
                                                 &this->current_controls[t],
                                                 this->dynamics_jacobians_state[t]);
     this->dynamics.eval_dynamics_jacobian_control(&this->current_points[t],
                                                   &this->current_controls[t],
                                                   this->dynamics_jacobians_control[t]);
-    this->dynamics.eval_dynamics(&this->current_points[t], &this->current_controls[t], this->dynamics_affine_terms[t]);
+//    this->dynamics.eval_dynamics(&this->current_points[t], &this->current_controls[t], this->dynamics_affine_terms[t]);
 
     if (this->running_constraint_dimension > 0) {
+//
+//      this->running_constraint.eval_constraint(&this->current_points[t],
+//                                               &this->current_controls[t],
+//                                               t,
+//                                               temp_constraint);
+//
+//      this->num_active_constraints[t] = (unsigned int) this->running_constraint.eval_active_indices(&temp_constraint,
+//                                                                                                    this->active_running_constraints[t]);
+//      this->running_constraint.eval_constraint_jacobian_state(&this->current_points[t],
+//                                                              &this->current_controls[t],
+//                                                              t,
+//                                                              temp_jacobian_1);
+//      std::cout<<temp_jacobian_1<<std::endl;
+//
+//      this->running_constraint.eval_constraint_jacobian_control(&this->current_points[t],
+//                                                                &this->current_controls[t],
+//                                                                t,
+//                                                                temp_jacobian_2);
+//
+//      for (int k = 0, d = 0; k < this->running_constraint.get_constraint_dimension(); ++k) {
+//        if (this->active_running_constraints[t](k)) {
+//          this->running_constraint_affine_terms[t](d) = temp_constraint(k);
+//          this->running_constraint_jacobians_state[t].row(d) = temp_jacobian_1.row(k);
+//          this->running_constraint_jacobians_control[t].row(d) = temp_jacobian_2.row(k);
+//          ++d;
+//        }
+//      }
+//    } else {
+//      this->num_active_constraints[t] = 0;
+//    }
+
       this->running_constraint.eval_constraint(&this->current_points[t],
                                                &this->current_controls[t],
                                                t,
-                                               temp_constraint);
-      this->num_active_constraints[t] = (unsigned int) this->running_constraint.eval_active_indices(&temp_constraint,
-                                                                                                    this->active_running_constraints[t]);
+                                               this->running_constraint_affine_terms[t]);
+
       this->running_constraint.eval_constraint_jacobian_state(&this->current_points[t],
                                                               &this->current_controls[t],
                                                               t,
-                                                              temp_jacobian_1);
+                                                              this->running_constraint_jacobians_state[t]);
+
       this->running_constraint.eval_constraint_jacobian_control(&this->current_points[t],
                                                                 &this->current_controls[t],
                                                                 t,
-                                                                temp_jacobian_2);
+                                                                this->running_constraint_jacobians_control[t]);
+    }
 
-      for (int k = 0, d = 0; k < this->running_constraint.get_constraint_dimension(); ++k) {
-        if (this->active_running_constraints[t](k)) {
-          this->running_constraint_affine_terms[t](d) = temp_constraint(k);
-          this->running_constraint_jacobians_state[t].row(d) = temp_jacobian_1.row(k);
-          this->running_constraint_jacobians_control[t].row(d) = temp_jacobian_2.row(k);
-          ++d;
-        }
-      }
-    } else {
-      this->num_active_constraints[t] = 0;
+    if (this->ec_running_constraint_dimension > 0) {
+      this->equality_constrained_running_constraint.eval_constraint(&this->current_points[t],
+                                                                    &this->current_controls[t],
+                                                                    t,
+                                                                    this->ec_running_constraint_affine_terms[t]);
+
+      this->equality_constrained_running_constraint.eval_constraint_jacobian_state(&this->current_points[t],
+                                                                                   &this->current_controls[t],
+                                                                                   t,
+                                                                                   this->ec_running_constraint_jacobians_state[t]);
+
+      this->equality_constrained_running_constraint.eval_constraint_jacobian_control(&this->current_points[t],
+                                                                                     &this->current_controls[t],
+                                                                                     t,
+                                                                                     this->ec_running_constraint_jacobians_control[t]);
+      this->num_active_constraints[t] = this->ec_running_constraint_dimension;
+      this->active_running_constraint_affine_terms[t] = this->ec_running_constraint_affine_terms[t];
+      this->active_running_constraint_jacobians_state[t] = this->ec_running_constraint_jacobians_state[t];
+      this->active_running_constraint_jacobians_control[t] = this->ec_running_constraint_jacobians_control[t];
     }
 
     this->running_cost.eval_cost_hessian_state_state(&this->current_points[t],
@@ -88,45 +172,71 @@ void Trajectory::populate_derivative_terms() {
                                                   this->hamiltonian_gradients_control[t]);
 
   }
-  temp_constraint.resize(this->terminal_constraint.get_constraint_dimension());
-  int t = this->trajectory_length - 1;
-  if (this->terminal_constraint.get_constraint_dimension() > 0) {
-    temp_jacobian_1.resize(this->terminal_constraint.get_constraint_dimension(), this->state_dimension);
-    if (not this->terminal_constraint.is_implicit()) {
-      this->terminal_constraint.eval_constraint(&this->current_points[t], temp_constraint);
-      this->terminal_constraint.eval_constraint_jacobian(&this->current_points[t], temp_jacobian_1);
-      this->terminal_constraint_dimension =
-          (unsigned int) this->terminal_constraint.eval_active_indices(&temp_constraint,
-                                                                       this->active_terminal_constraints);
-    }
 
-    const Eigen::MatrixXd I = Eigen::MatrixXd::Identity(this->terminal_constraint.get_constraint_dimension(),
-                                                        this->terminal_constraint.get_constraint_dimension());
-    for (int k = 0, d = 0; k < this->terminal_constraint.get_constraint_dimension(); ++k) {
-      if (this->terminal_constraint.is_implicit()) {
-        this->terminal_constraint_jacobian_state.row(d) = I.row(k);
-        this->terminal_constraint_jacobian_terminal_projection.row(d) = I.row(k);
-        ++d;
-      } else {
-        if (this->active_terminal_constraints(k)) {
-          this->terminal_constraint_affine_term(d) = temp_constraint(k);
-          this->terminal_constraint_jacobian_state.row(d) = temp_jacobian_1.row(k);
-          ++d;
-        }
-      }
-    }
-    if (not this->terminal_constraint.is_implicit()) {
-      this->terminal_state_projection = this->terminal_constraint_affine_term;
-    }
+//  temp_constraint.resize(this->terminal_constraint.get_constraint_dimension());
+//  int t = this->trajectory_length - 1;
+//  if (this->terminal_constraint.get_constraint_dimension() > 0) {
+//    temp_jacobian_1.resize(this->terminal_constraint.get_constraint_dimension(), this->state_dimension);
+//    if (not this->terminal_constraint.is_implicit()) {
+//      this->terminal_constraint.eval_constraint(&this->current_points[t], temp_constraint);
+//      this->terminal_constraint.eval_constraint_jacobian(&this->current_points[t], temp_jacobian_1);
+//      this->terminal_constraint_dimension =
+//          (unsigned int) this->terminal_constraint.eval_active_indices(&temp_constraint,
+//                                                                       this->active_terminal_constraints);
+//    }
+//
+//    const Eigen::MatrixXd I = Eigen::MatrixXd::Identity(this->terminal_constraint.get_constraint_dimension(),
+//                                                        this->terminal_constraint.get_constraint_dimension());
+//    for (int k = 0, d = 0; k < this->terminal_constraint.get_constraint_dimension(); ++k) {
+//      if (this->terminal_constraint.is_implicit()) {
+//        this->terminal_constraint_jacobian_state.row(d) = I.row(k);
+//        this->terminal_constraint_jacobian_terminal_projection.row(d) = I.row(k);
+//        ++d;
+//      } else {
+//        if (this->active_terminal_constraints(k)) {
+//          this->terminal_constraint_affine_term(d) = temp_constraint(k);
+//          this->terminal_constraint_jacobian_state.row(d) = temp_jacobian_1.row(k);
+//          ++d;
+//        }
+//      }
+//    }
+//    if (not this->terminal_constraint.is_implicit()) {
+//      this->lq_terminal_state = this->terminal_constraint_affine_term;
+//    }
+//  }
+  const Eigen::MatrixXd I = Eigen::MatrixXd::Identity(this->ec_terminal_constraint_dimension,
+                                                      this->ec_terminal_constraint_dimension);
+  int t = this->trajectory_length - 1;
+  if (this->terminal_constraint_dimension > 0) {
+    this->terminal_constraint.eval_constraint(&this->current_points[t], this->terminal_constraint_affine_term);
+    this->terminal_constraint.eval_constraint_jacobian(&this->current_points[t], this->terminal_constraint_jacobian_state);
   }
+  if (this->ec_terminal_constraint_dimension > 0) {
+    this->num_active_terminal_constraints = this->ec_terminal_constraint_dimension;
+    if (not this->equality_constrained_terminal_constraint.is_implicit()) {
+      this->equality_constrained_terminal_constraint.eval_constraint(&this->current_points[t], this->ec_terminal_constraint_affine_term);
+      this->equality_constrained_terminal_constraint.eval_constraint_jacobian(&this->current_points[t], this->ec_terminal_constraint_jacobian_state);
+      this->ec_terminal_constraint_jacobian_terminal_projection.setZero();
+    } else {
+      this->ec_terminal_constraint_affine_term.setZero();
+      this->ec_terminal_constraint_jacobian_state = I;
+      this->ec_terminal_constraint_jacobian_terminal_projection = I;
+    }
+    this->active_terminal_constraint_affine_term = this->ec_terminal_constraint_affine_term;
+    this->active_terminal_constraint_jacobian_state = this->ec_terminal_constraint_jacobian_state;
+    this->active_terminal_constraint_jacobian_terminal_projection = this->ec_terminal_constraint_jacobian_terminal_projection;
+  } else {
+    this->num_active_terminal_constraints = 0;
+  }
+
   this->terminal_cost.eval_cost_hessian_state_state(&this->current_points[t], this->terminal_cost_hessians_state_state);
   this->terminal_cost.eval_cost_gradient_state(&this->current_points[t], this->terminal_cost_gradient_state);
 }
 
 void Trajectory::populate_bandsolve_terms() {
-  unsigned int max_constraint_size = (unsigned int) this->active_terminal_constraints.count();
-  long total_active_constraints = this->active_terminal_constraints.count();
-  for (int t = 0; t < this->trajectory_length - 1; ++t) {
+  unsigned int max_constraint_size = (unsigned int) this->num_active_terminal_constraints;
+  long total_active_constraints = this->num_active_terminal_constraints;
+  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
     max_constraint_size = std::max(max_constraint_size, this->num_active_constraints[t]);
     total_active_constraints += this->num_active_constraints[t];
   }
@@ -164,9 +274,8 @@ void Trajectory::populate_bandsolve_terms() {
   int dual_offset_1 = 0;
   int dual_offset_2 = 0;
   d1.segment(dual_offset_1, n) = -this->initial_constraint_affine_term;
-  std::cout << "Made it here" << std::endl;
 
-  for (int t = 0; t < this->trajectory_length - 1; ++t) {
+  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
     K.block(primal_offset, primal_offset, n, n) = this->hamiltonian_hessians_state_state[t];
     K.block(primal_offset + n, primal_offset, m, n) = this->hamiltonian_hessians_control_state[t];
     K.block(primal_offset, primal_offset + n, n, m) = this->hamiltonian_hessians_control_state[t].transpose();
@@ -177,13 +286,13 @@ void Trajectory::populate_bandsolve_terms() {
     D1.block(dual_offset_1, primal_offset, n, n) = I;
     D1.block(dual_offset_1 + n, primal_offset, n, n) = -this->dynamics_jacobians_state[t];
     D1.block(dual_offset_1 + n, primal_offset + n, n, m) = -this->dynamics_jacobians_control[t];
-    d1.segment(dual_offset_1 + n, n) = this->dynamics_affine_terms[t];
+//    d1.segment(dual_offset_1 + n, n) = this->dynamics_affine_terms[t];
     dual_offset_1 += n;
 
     int l = this->num_active_constraints[t];
-    D2.block(dual_offset_2, primal_offset, l, n) = this->running_constraint_jacobians_state[t].topRows(l);
-    D2.block(dual_offset_2, primal_offset + n, l, m) = this->running_constraint_jacobians_control[t].topRows(l);
-    d2.segment(dual_offset_2, l) = -this->running_constraint_affine_terms[t].head(l);
+    D2.block(dual_offset_2, primal_offset, l, n) = this->active_running_constraint_jacobians_state[t].topRows(l);
+    D2.block(dual_offset_2, primal_offset + n, l, m) = this->active_running_constraint_jacobians_control[t].topRows(l);
+    d2.segment(dual_offset_2, l) = -this->active_running_constraint_affine_terms[t].head(l);
     dual_offset_2 += l;
 
     primal_offset += (n + m);
@@ -193,9 +302,9 @@ void Trajectory::populate_bandsolve_terms() {
 
   D1.block(dual_offset_1, primal_offset, n, n) = I;
 
-  long l = this->active_terminal_constraints.count();
-  D2.block(dual_offset_2, primal_offset, l, n) = this->terminal_constraint_jacobian_state.topRows(l);
-  d2.segment(dual_offset_2, l) = -this->terminal_constraint_affine_term.head(l);
+  long l = this->num_active_terminal_constraints;
+  D2.block(dual_offset_2, primal_offset, l, n) = this->active_terminal_constraint_jacobian_state.topRows(l);
+  d2.segment(dual_offset_2, l) = -this->active_terminal_constraint_affine_term.head(l);
 
   Eigen::MatrixXd tempA(this->soln_size, this->soln_size);
   Eigen::VectorXd tempB(this->soln_size);
@@ -203,15 +312,13 @@ void Trajectory::populate_bandsolve_terms() {
   tempA << K, D1.transpose(), D2.transpose(), D1, Z1, D2, Z2;
   tempB << k, d1, d2;
 
-  std::cout << "Made it here" << std::endl;
-
   // Setup permutation vector
   Eigen::VectorXi permutation = Eigen::VectorXi::Zero(this->soln_size);
   primal_offset = 0;
   dual_offset_1 = (int) primal_size;
   dual_offset_2 = (int) (primal_size + dual_size_1);
   int perm_offset = 0;
-  for (int t = 0; t < this->trajectory_length - 1; ++t) {
+  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
     for (int i = 0; i < n; ++i, ++perm_offset) {
       permutation(perm_offset) = dual_offset_1 + i;
     }
@@ -229,7 +336,7 @@ void Trajectory::populate_bandsolve_terms() {
   for (int i = 0; i < n; ++i, ++perm_offset) {
     permutation(perm_offset) = dual_offset_1 + i;
   }
-  long lt = this->active_terminal_constraints.count();
+  long lt = this->num_active_terminal_constraints;
   for (int i = 0; i < lt; ++i, ++perm_offset) {
     permutation(perm_offset) = dual_offset_2 + i;
   }
@@ -237,10 +344,10 @@ void Trajectory::populate_bandsolve_terms() {
     permutation(perm_offset) = primal_offset + i;
   }
 
-  Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int> perm(permutation);
+  this->perm = Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int>(permutation);
 
-  this->A = perm.transpose() * tempA * perm;
-  tempB = (perm.transpose() * tempB).eval();
+  this->A = this->perm.transpose() * tempA * this->perm;
+  tempB = (this->perm.transpose() * tempB).eval();
 
   for (int t = 0; t < this->soln_size; ++t) {
     this->B[t] = tempB(t);
@@ -257,6 +364,28 @@ void Trajectory::populate_bandsolve_terms() {
       this->AB[(abi - 1) + (j - 1) * LDAB] = this->A(i - 1, j - 1);
     }
   }
+
+//  int N = this->soln_size;
+//  int KL = this->half_bandwidth;
+//  int KU = this->half_bandwidth;
+//  int NRHS = 1;
+////  int LDAB = 3 * this->half_bandwidth + 1;
+//  int IPIV[this->soln_size];
+//  int LDB = std::max(1, this->soln_size);
+//  int INFO;
+//  dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
+//  for (int t = 0; t < this->soln_size; ++t) {
+//    tempB(t) = this->B[t];
+//  }
+//  tempB = perm * tempB;
+//
+//  int off = 0;
+//  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
+//    this->sanity_states[t] = tempB.segment(off, n);
+//    this->sanity_controls[t] = tempB.segment(off + n, m);
+//    off += (n + m);
+//  }
+//  this->sanity_states[this->trajectory_length - 1] = tempB.segment(off, n);
 }
 
 void Trajectory::bandsolve_traj() {
@@ -269,14 +398,43 @@ void Trajectory::bandsolve_traj() {
   int LDB = std::max(1, this->soln_size);
   int INFO;
 
-  //dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
+
+  dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
   std::cout << "Bandsolve successful? " << INFO << std::endl;
+}
+
+void Trajectory::extract_bandsoln() {
+  Eigen::VectorXd tempB(this->soln_size);
+  const int n = this->state_dimension;
+  const int m = this->control_dimension;
+
+  for (int t = 0; t < this->soln_size; ++t) {
+    tempB(t) = this->B[t];
+  }
+  tempB = this->perm * tempB;
+
+  int off = 0;
+  for (unsigned int t = 0; t < this->trajectory_length - 1; ++t) {
+    this->sanity_states[t] = tempB.segment(off, n);
+    this->sanity_controls[t] = tempB.segment(off + n, m);
+    off += (n + m);
+  }
+  this->sanity_states[this->trajectory_length - 1] = tempB.segment(off, n);
+}
+
+void Trajectory::update_working_set() {
+  // Make sure open_loop_states/controls are set.
+//  double alpha = 1.0;
+//  Eigen::VectorXd inequality_constraint = Eigen::VectorXd::Zero(this->running_constraint_dimension);
+//  for (unsigned int t=0; t< this->trajectory_length-1; ++t) {
+//    inequality_constraint = this->running_constraint_jacobians_state[t] * this->open_loop_states[t] + this->running_constraint_jacobians_control[t] * this->open_loop_controls[t] +
+//  }
 }
 
 void Trajectory::compute_feedback_policies() {
   const unsigned int n = this->state_dimension;
   const unsigned int m = this->control_dimension;
-  const unsigned int l = this->terminal_constraint_dimension;
+  const unsigned int l = this->num_active_terminal_constraints;
   const unsigned int li = this->implicit_terminal_constraint_dimension;
 
   Eigen::MatrixXd Mxx = Eigen::MatrixXd::Zero(n, n);
@@ -302,9 +460,9 @@ void Trajectory::compute_feedback_policies() {
 
   this->auxiliary_constraints_present[this->trajectory_length - 1] = (l > 0);
 
-  Eigen::MatrixXd Gx = this->terminal_constraint_jacobian_state.topLeftCorner(l, n).eval();
-  Eigen::MatrixXd Gz = this->terminal_constraint_jacobian_terminal_projection.topLeftCorner(l, li).eval();
-  Eigen::VectorXd G1 = this->terminal_constraint_affine_term.head(l).eval();
+  Eigen::MatrixXd Gx = this->active_terminal_constraint_jacobian_state.topLeftCorner(l, n).eval();
+  Eigen::MatrixXd Gz = this->active_terminal_constraint_jacobian_terminal_projection.topLeftCorner(l, li).eval();
+  Eigen::VectorXd G1 = this->active_terminal_constraint_affine_term.head(l).eval();
 
   Eigen::MatrixXd Nx = Eigen::MatrixXd::Zero(n, n);
   Eigen::MatrixXd Nu = Eigen::MatrixXd::Zero(n, m);
@@ -321,7 +479,6 @@ void Trajectory::compute_feedback_policies() {
     this->auxiliary_constraints_present[t] = ((this->num_active_constraints[t] + G1.size()) > 0);
     this->need_dynamics_mult[t] =
         (this->auxiliary_constraints_present[t + 1] > 0 and this->auxiliary_constraints_present[t] == 0);
-
     this->perform_constrained_dynamic_programming_backup(&this->hamiltonian_hessians_state_state[t],
                                                          &this->hamiltonian_hessians_control_control[t],
                                                          &this->hamiltonian_hessians_control_state[t],
@@ -330,9 +487,9 @@ void Trajectory::compute_feedback_policies() {
                                                          &this->dynamics_jacobians_state[t],
                                                          &this->dynamics_jacobians_control[t],
                                                          &this->dynamics_affine_terms[t],
-                                                         &this->running_constraint_jacobians_state[t],
-                                                         &this->running_constraint_jacobians_control[t],
-                                                         &this->running_constraint_affine_terms[t],
+                                                         &this->active_running_constraint_jacobians_state[t],
+                                                         &this->active_running_constraint_jacobians_control[t],
+                                                         &this->active_running_constraint_affine_terms[t],
                                                          this->num_active_constraints[t],
                                                          this->implicit_terminal_terms_needed[t],
                                                          Mxx,
@@ -419,7 +576,6 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
   Mxx = (*Ax).transpose() * Vxx * (*Ax) + *Qxx;
   Mux = (*Au).transpose() * Vxx * (*Ax) + *Qux;
   Muu = (*Au).transpose() * Vxx * (*Au) + *Quu;
-
   if (implicit_terminal_terms_needed) {
     Mz1 = Vzx * (*A1) + Vz1;
     Mzx = Vzx * (*Ax);
@@ -478,6 +634,7 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
   }
 
   long constraint_size = num_active_constraints + G1.size();
+  std::cout<<"constraint size: " << constraint_size<<std::endl;
   N1.resize(constraint_size);
   Nx.resize(constraint_size, this->state_dimension);
   Nu.resize(constraint_size, this->control_dimension);
@@ -491,11 +648,21 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
     Nz << Eigen::MatrixXd::Zero(num_active_constraints, this->implicit_terminal_constraint_dimension), Gz;
   }
 
+//  if (num_active_constraints > 0) {
+//    std::cout << "Constraint is " << *Dx << " * dx + " << *Du << " * du + " << *D1 << " = 0" << std::endl;
+//  }
+
   if (constraint_size > 0) {
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(Nu, Eigen::ComputeFullU | Eigen::ComputeFullV);
     long constraint_rank = svd.rank();
     if (constraint_rank == 0) {
       Eigen::FullPivLU<Eigen::MatrixXd> decMuu(Muu);
+      if (decMuu.rank() < this->control_dimension) {
+        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigMuu(Muu);
+        double min_eig = eigMuu.eigenvalues()(0);
+        Muu += min_eig * Eigen::MatrixXd::Identity(this->control_dimension, this->control_dimension);
+        decMuu.compute(Muu);
+      }
       Lx = -decMuu.solve(Mux);
       L1 = -decMuu.solve(Mu1);
       Gx = Nx;
@@ -505,9 +672,7 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
         Lz = -decMuu.solve(Mzu.transpose());
         Gz = Nz;
       }
-
     } else {
-
       Eigen::MatrixXd U_Nu_t = svd.matrixU().transpose();
       Eigen::MatrixXd V_Nu = svd.matrixV();
       Eigen::MatrixXd V_Nu_l = V_Nu.leftCols(constraint_rank);
@@ -540,7 +705,6 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
         Gz << Nz.bottomRows(constraint_size - constraint_rank);
         Nz.conservativeResize(constraint_rank, Eigen::NoChange);
       }
-
       const Eigen::MatrixXd VlSi = -V_Nu_l * Si_Nu;
       if (constraint_rank >= this->control_dimension) { // constraint_rank == control_dimension
         Lx = VlSi * Nx;
@@ -566,7 +730,12 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
         tmuu = Tu.transpose() * temp3;
 
         Eigen::FullPivLU<Eigen::MatrixXd> decMuu(tmuu);
-
+        if (decMuu.rank() < tmuu.rows()) {
+          Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigtmuu(tmuu);
+          double min_eig = eigtmuu.eigenvalues()(0);
+          tmuu += min_eig * Eigen::MatrixXd::Identity(tmuu.rows(), tmuu.rows());
+          decMuu.compute(tmuu);
+        }
         temp1 = -decMuu.solve(tmu1);
         temp2 = -decMuu.solve(tmux);
 
@@ -582,8 +751,13 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
       }
     }
   } else {
-
     Eigen::FullPivLU<Eigen::MatrixXd> decMuu(Muu);
+    if (decMuu.rank() < this->control_dimension) {
+      Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigMuu(Muu);
+      double min_eig = eigMuu.eigenvalues()(0);
+      Muu += min_eig * Eigen::MatrixXd::Identity(this->control_dimension, this->control_dimension);
+      decMuu.compute(Muu);
+    }
     Lx = -decMuu.solve(Mux);
     L1 = -decMuu.solve(Mu1);
 
@@ -596,7 +770,6 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
     }
 
   }
-
   const Eigen::VectorXd temp1 = Mu1 + Muu * L1;
   const Eigen::MatrixXd temp2 = Mux + Muu * Lx;
 
@@ -635,15 +808,11 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
     Lz.setZero();
     Gz.setZero();
   }
-
-//  Eigen::MatrixXd CL = (*Ax) + (*Au) * Lx;
-//  Eigen::EigenSolver<Eigen::MatrixXd> eigensolver(CL);
-//  std::cout<<"Eigenvalues of cl system are: " << eigensolver.eigenvalues().transpose()<<std::endl;
 }
 
 void Trajectory::compute_multipliers() {
   const unsigned int n = this->state_dimension;
-  const unsigned int l = this->terminal_constraint_dimension;
+  const unsigned int l = this->num_active_terminal_constraints;
   const unsigned int li = this->implicit_terminal_constraint_dimension;
   const unsigned int T = this->trajectory_length;
   unsigned int j, nextj;
@@ -651,7 +820,7 @@ void Trajectory::compute_multipliers() {
   Eigen::VectorXd q, r, qnext, P1;
   Eigen::MatrixXd Ex, Ez, Dx, Dz;
   Eigen::VectorXd E1, D1;
-  H = this->terminal_constraint_jacobian_state.topRows(l);
+  H = this->active_terminal_constraint_jacobian_state.topRows(l);
   Omega = H * H.transpose();
   Q = this->terminal_cost_hessians_state_state;
   q = this->terminal_cost_gradient_state;
@@ -673,7 +842,6 @@ void Trajectory::compute_multipliers() {
     this->terminal_constraint_mult_terminal_state_feedback_term.topLeftCorner(l, li) = Eigen::MatrixXd::Zero(l, li);
     this->terminal_constraint_mult_feedforward_term.head(l) = Eigen::VectorXd::Zero(l);
   }
-
   for (int t = T - 2; t >= 0; --t) {
 //    if (true) {
     if (this->auxiliary_constraints_present[t + 1]) {
@@ -681,20 +849,20 @@ void Trajectory::compute_multipliers() {
 
       if ((unsigned int) t < T - 2) {
         nextj = this->num_active_constraints[t + 1];
-        Hnext = this->running_constraint_jacobians_state[t + 1].topRows(nextj);
+        Hnext = this->active_running_constraint_jacobians_state[t + 1].topRows(nextj);
         Anext = this->dynamics_jacobians_state[t + 1];
         Qnext = this->hamiltonian_hessians_state_state[t + 1];
         qnext = this->hamiltonian_gradients_state[t + 1];
         Snext = this->hamiltonian_hessians_control_state[t + 1];
       } else {
         nextj = l;
-        Hnext = this->terminal_constraint_jacobian_state.topRows(nextj);
+        Hnext = this->active_terminal_constraint_jacobian_state.topRows(nextj);
         Qnext = this->terminal_cost_hessians_state_state;
         qnext = this->terminal_cost_gradient_state;
       }
 
-      H = this->running_constraint_jacobians_state[t].topRows(j);
-      G = this->running_constraint_jacobians_control[t].topRows(j);
+      H = this->active_running_constraint_jacobians_state[t].topRows(j);
+      G = this->active_running_constraint_jacobians_control[t].topRows(j);
       A = this->dynamics_jacobians_state[t];
       B = this->dynamics_jacobians_control[t];
       Q = this->hamiltonian_hessians_state_state[t];
@@ -734,7 +902,6 @@ void Trajectory::compute_multipliers() {
       Plam.resize(j + n, n);
       Pproj.resize(j + n, li + n);
       P1.resize(j + n);
-
       if ((unsigned int) t < T - 2) {
         Sigma += (Hnext.transpose() * this->running_constraint_mult_dynamics_mult_feedback_terms[t + 1].topRows(nextj)
             - Anext.transpose() * this->dynamics_mult_dynamics_mult_feedback_terms[t + 2]).eval();
@@ -802,7 +969,7 @@ void Trajectory::compute_multipliers() {
     j = this->num_active_constraints[0];
     Q = this->hamiltonian_hessians_state_state[0];
     S = this->hamiltonian_hessians_control_state[0];
-    H = this->running_constraint_jacobians_state[0].topRows(j);
+    H = this->active_running_constraint_jacobians_state[0].topRows(j);
     A = this->dynamics_jacobians_state[0];
     q = this->hamiltonian_gradients_state[0];
     Dx = Q * this->state_dependencies_initial_state_projection[0] +
@@ -923,14 +1090,13 @@ void Trajectory::compute_state_control_dependencies() {
 }
 
 void Trajectory::set_open_loop_traj() {
-  Eigen::VectorXd x0 = this->initial_state_projection;
-  Eigen::VectorXd xT = this->terminal_state_projection;
-  const unsigned int n = this->state_dimension;
+  Eigen::VectorXd x0 = this->lq_initial_state;
+  Eigen::VectorXd xT = this->lq_terminal_state;
   const unsigned int li = this->implicit_terminal_constraint_dimension;
   bool initial_implicit = this->initial_constraint.is_implicit();
   const unsigned int T = this->trajectory_length;
 
-  for (int t=0; t<T-1; ++t) {
+  for (unsigned int t = 0; t < T - 1; ++t) {
     this->open_loop_states[t] = this->state_dependencies_affine_term[t];
     this->open_loop_controls[t] = this->control_dependencies_affine_term[t];
     if (initial_implicit) {
@@ -942,23 +1108,57 @@ void Trajectory::set_open_loop_traj() {
       this->open_loop_controls[t] += this->control_dependencies_terminal_state_projection[t].leftCols(li) * xT;
     }
   }
-  this->open_loop_states[T-1] = this->state_dependencies_affine_term[T-1];
+  this->open_loop_states[T - 1] = this->state_dependencies_affine_term[T - 1];
   if (initial_implicit) {
-    this->open_loop_states[T-1] += this->state_dependencies_initial_state_projection[T-1]*x0;
+    this->open_loop_states[T - 1] += this->state_dependencies_initial_state_projection[T - 1] * x0;
   }
   if (li > 0) {
-    this->open_loop_states[T-1] += this->state_dependencies_terminal_state_projection[T-1]*xT;
+    this->open_loop_states[T - 1] += this->state_dependencies_terminal_state_projection[T - 1].leftCols(li) * xT;
+  }
+}
+
+void Trajectory::set_lq_multipliers() {
+  Eigen::VectorXd x0 = this->lq_initial_state;
+  Eigen::VectorXd xT = this->lq_terminal_state;
+  const unsigned int li = this->implicit_terminal_constraint_dimension;
+  bool initial_implicit = this->initial_constraint.is_implicit();
+  const unsigned int T = this->trajectory_length;
+
+  for (unsigned int t = 0; t < T - 1; ++t) {
+    this->lq_dynamics_multipliers[t] = this->dynamics_mult_feedforward_terms[t];
+    this->lq_running_constraint_multipliers[t] = this->running_constraint_mult_feedforward_terms[t];
+    if (initial_implicit) {
+      this->lq_dynamics_multipliers[t] += this->dynamics_mult_initial_state_feedback_terms[t] * x0;
+      this->lq_running_constraint_multipliers[t] += this->running_constraint_mult_terminal_state_feedback_terms[t] * x0;
+    }
+    if (li > 0) {
+      this->lq_dynamics_multipliers[t] += this->dynamics_mult_terminal_state_feedback_terms[t].leftCols(li) * xT;
+      this->lq_running_constraint_multipliers[t] +=
+          this->running_constraint_mult_terminal_state_feedback_terms[t].leftCols(li) * xT;
+    }
+  }
+  this->lq_dynamics_multipliers[T - 1] = this->dynamics_mult_feedforward_terms[T - 1];
+  this->lq_terminal_constraint_multiplier = this->terminal_constraint_mult_feedforward_term;
+  if (initial_implicit) {
+    this->lq_dynamics_multipliers[T - 1] += this->dynamics_mult_initial_state_feedback_terms[T - 1] * x0;
+    this->lq_terminal_constraint_multiplier += this->terminal_constraint_mult_initial_state_feedback_term * x0;
+  }
+  if (li > 0) {
+    this->lq_dynamics_multipliers[T - 1] += this->dynamics_mult_terminal_state_feedback_terms[T - 1].leftCols(li) * xT;
+    this->lq_terminal_constraint_multiplier +=
+        this->terminal_constraint_mult_terminal_state_feedback_term.leftCols(li) * xT;
   }
 }
 
 // Setters
 
 void Trajectory::set_terminal_point(Eigen::VectorXd *terminal_projection) {
-  this->terminal_state_projection = *terminal_projection;
+  this->lq_terminal_state = *terminal_projection;
 }
 
 void Trajectory::set_initial_point(Eigen::VectorXd *initial_projection) {
-  this->initial_state_projection =  *initial_projection;
+  this->lq_initial_state = *initial_projection;
+  this->current_points[0] = *initial_projection;
 }
 
 void Trajectory::set_initial_constraint_dimension(unsigned int d) {

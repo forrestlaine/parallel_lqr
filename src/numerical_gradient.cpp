@@ -101,7 +101,6 @@ void numerical_jacobian_first_input(const std::function<void(const Eigen::Vector
   const long n = (*v1).size();
   Eigen::MatrixXd I = tol*Eigen::MatrixXd::Identity(n, n);
   Eigen::VectorXd temp1, temp2, temp3, temp4;
-
   for (int i = 0; i < n; ++i) {
     temp1 = (*v1) + I.col(i);
     temp2 = (*v1) - I.col(i);

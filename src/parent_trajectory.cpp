@@ -52,10 +52,11 @@ void ParentTrajectory::SetNumChildTrajectories(unsigned int desired_num_threads)
   }
   this->num_parallel_solvers = (unsigned int) std::floor(std::sqrt(this->num_child_trajectories));
   this->meta_segment_lengths.resize(this->num_parallel_solvers);
-  this->meta_link_point_indices.resize(this->num_parallel_solvers-1);
+  this->meta_link_point_indices.resize(this->num_parallel_solvers - 1);
   unsigned int total_link_points = this->num_child_trajectories - 1;
-  unsigned int nominal_segment_length = (total_link_points - (this->num_parallel_solvers-1)) / this->num_parallel_solvers;
-  unsigned int remainder = (total_link_points - (this->num_parallel_solvers-1)) % this->num_parallel_solvers;
+  unsigned int
+      nominal_segment_length = (total_link_points - (this->num_parallel_solvers - 1)) / this->num_parallel_solvers;
+  unsigned int remainder = (total_link_points - (this->num_parallel_solvers - 1)) % this->num_parallel_solvers;
   unsigned int link_points_so_far = 0;
   for (unsigned int i = 0; i < this->num_parallel_solvers - 1; ++i) {
     this->meta_segment_lengths[i] = nominal_segment_length;
@@ -63,19 +64,19 @@ void ParentTrajectory::SetNumChildTrajectories(unsigned int desired_num_threads)
       this->meta_segment_lengths[i] += 1;
       --remainder;
     }
-    link_points_so_far += (this->meta_segment_lengths[i]+1);
+    link_points_so_far += (this->meta_segment_lengths[i] + 1);
     this->meta_link_point_indices[i] = link_points_so_far;
   }
-  this->meta_segment_lengths[this->num_parallel_solvers-1] = nominal_segment_length;
+  this->meta_segment_lengths[this->num_parallel_solvers - 1] = nominal_segment_length;
 }
 
 void ParentTrajectory::InitializeChildTrajectories() {
   for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
 
-    endpoint_constraint::EndPointConstraint *terminal_constraint_ptr =
-        (t < this->num_child_trajectories - 1) ? &this->empty_terminal_constraint : &this->terminal_constraint;
+    equality_constrained_endpoint_constraint::EqualityConstrainedEndPointConstraint *terminal_constraint_ptr =
+        (t < this->num_child_trajectories - 1) ? &this->empty_terminal_constraint : &this->equality_constrained_terminal_constraint;
 
-    endpoint_constraint::EndPointConstraint *initial_constraint_ptr =
+    equality_constrained_endpoint_constraint::EqualityConstrainedEndPointConstraint *initial_constraint_ptr =
         (t > 0) ? &this->empty_terminal_constraint : &this->initial_constraint;
 
     terminal_cost::TerminalCost
@@ -86,6 +87,8 @@ void ParentTrajectory::InitializeChildTrajectories() {
                                                                  this->control_dimension,
                                                                  &this->dynamics,
                                                                  &this->running_constraint,
+                                                                 &this->equality_constrained_running_constraint,
+                                                                 &this->terminal_constraint,
                                                                  terminal_constraint_ptr,
                                                                  initial_constraint_ptr,
                                                                  &this->running_cost,
@@ -159,20 +162,28 @@ void ParentTrajectory::ComputeMultipliers() {
 }
 
 void ParentTrajectory::ParallelSolveForChildTrajectoryLinkPoints() {
-  #pragma omp parallel for num_threads(this->num_parallel_solvers)
+#pragma omp parallel for num_threads(this->num_parallel_solvers)
   for (unsigned int t = 0; t < this->num_parallel_solvers; ++t) {
     this->SolveForChildTrajectoryLinkPoints(t);
   }
 }
 
 void ParentTrajectory::SetOpenLoopTrajectories() {
+  int offset = 0;
 #pragma omp parallel for num_threads(this->num_parallel_solvers)
   for (unsigned int t = 0; t < this->num_child_trajectories; ++t) {
     this->child_trajectories[t].set_open_loop_traj();
+    for (unsigned int j = 0; j < this->child_trajectory_lengths[t]-1; ++j) {
+      this->global_open_loop_states[offset+j] = this->child_trajectories[t].open_loop_states[j];
+      this->global_open_loop_controls[offset+j] = this->child_trajectories[t].open_loop_controls[j];
+    }
+    offset += this->child_trajectory_lengths[t]-1;
   }
+  this->global_open_loop_states[offset] = this->child_trajectories[this->num_child_trajectories - 1].open_loop_states[
+          this->child_trajectory_lengths[this->num_child_trajectories - 1] - 1];
 }
 
-void ParentTrajectory::SolveForChildTrajectoryLinkPoints(int meta_segment) {
+void ParentTrajectory::SolveForChildTrajectoryLinkPoints(int /*meta_segment */) {
 
   unsigned int num_unknown_link_points = this->num_child_trajectories - 1;
 
@@ -262,9 +273,9 @@ void ParentTrajectory::SolveForChildTrajectoryLinkPoints(int meta_segment) {
     }
   }
 
-  for (unsigned int t=0; t < num_unknown_link_points; ++t) {
+  for (unsigned int t = 0; t < num_unknown_link_points; ++t) {
     this->child_trajectories[t].set_terminal_point(&this->child_trajectory_link_points[t]);
-    this->child_trajectories[t+1].set_initial_point(&this->child_trajectory_link_points[t]);
+    this->child_trajectories[t + 1].set_initial_point(&this->child_trajectory_link_points[t]);
   }
 }
 
