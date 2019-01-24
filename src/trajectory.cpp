@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace trajectory {
-
+/*
 extern "C" void dgbsv_(int *N,
                        int *KL,
                        int *KU,
@@ -20,7 +20,7 @@ extern "C" void dgbsv_(int *N,
                        double *B,
                        int *LDB,
                        int *INFO);
-
+*/
 void Trajectory::execute_current_control_policy(double disturbance) {
   const int li = this->implicit_terminal_constraint_dimension;
   Eigen::VectorXd statediff = Eigen::VectorXd::Zero(this->state_dimension);
@@ -399,7 +399,7 @@ void Trajectory::bandsolve_traj() {
   int INFO;
 
 
-  dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
+  //dgbsv_(&N, &KL, &KU, &NRHS, &*this->AB.begin(), &LDAB, IPIV, &*this->B.begin(), &LDB, &INFO);
   std::cout << "Bandsolve successful? " << INFO << std::endl;
 }
 
@@ -634,7 +634,7 @@ void Trajectory::perform_constrained_dynamic_programming_backup(const Eigen::Mat
   }
 
   long constraint_size = num_active_constraints + G1.size();
-  std::cout<<"constraint size: " << constraint_size<<std::endl;
+ // std::cout<<"constraint size: " << constraint_size<<std::endl;
   N1.resize(constraint_size);
   Nx.resize(constraint_size, this->state_dimension);
   Nu.resize(constraint_size, this->control_dimension);

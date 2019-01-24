@@ -1,0 +1,6 @@
+Local size: 32020
+Local size: 32020
+Local size: 32020
+Total size: 128080
+Local size: 32020
+Time taken (seconds): 0.439056

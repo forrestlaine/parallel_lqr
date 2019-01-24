@@ -1,0 +1,31 @@
+=== START OF EXAMPLE ===================
+Matrix-matrix multiplication: A*B = C
+
+/  1/q_1 ........   1/q_n-1     1/q_n  \ 
+|        .                             | 
+|         `.           :         :     | 
+| -1/q_1    `.         :         :     | 
+|        .    `.       :         :     |  =  A 
+|   0     `.    `                      | 
+|   : `.    `.      1/q_n-1     1/q_n  | 
+|   :   `.    `.                       | 
+\   0 .... 0     -(n-1)/q_n-1   1/q_n  / 
+
+q_i = sqrt( i^2 + i ), i=1..n-1, q_n = sqrt( n )
+
+A  -  n*n real matrix (orthonormal) 
+B  -  random n*n real matrix
+
+n = 51, nb = 4; 2x2 - process grid
+
+=== PROGRESS ===========================
+.. Arrays are distributed ( p?geadd ) ..
+.. Norms of A and B are computed ( p?lange ) ..
+.. Multiplication A*B=C is done ( p?gemm ) ..
+.. Difference is computed ( p?gemm ) ..
+.. Norms of the difference B-inv_A*C is computed ( p?lange ) ..
+.. Solutions are compared ..
+== Results ==
+||A|| = 4.090874
+||B|| = 31.436890
+=== END OF EXAMPLE =====================

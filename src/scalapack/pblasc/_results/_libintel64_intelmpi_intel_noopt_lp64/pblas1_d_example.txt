@@ -1,0 +1,15 @@
+=== START OF EXAMPLE ===================
+Two vectors in 22-dimensional space
+Block size for distribution: 3
+
+=== PROGRESS ===========================
+.. Vectors are distributed ( p?geadd ) ..
+.. Value of norm for each vector is computed ( p?nrm2 ) ..
+.. Vectors are normalized ( p?scal ) ..
+.. Cosine between vectors is computed ( p?dot ) ..
+== Results ==
+||x||=1.00000000000 - length of vector x
+||y||=8.00000000000 - length of vector y
+cos(x^y)=-0.99993954928
+angle(x^y)=179.37000000000 degrees
+=== END OF EXAMPLE =====================

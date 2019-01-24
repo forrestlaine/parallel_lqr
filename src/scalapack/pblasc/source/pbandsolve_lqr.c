@@ -24,6 +24,20 @@ const double zero = 0.0E+0, one = 1.0E+0, two = 2.0E+0;
 const MKL_INT i_zero = 0, i_one = 1, i_five = 5, i_negone = -1;
 const char trans = 'N';
 
+struct timespec timer_start(){
+    struct timespec start_time;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_time);
+    return start_time;
+}
+
+// call this function to end a timer, returning nanoseconds elapsed as a long
+ long timer_end(struct timespec start_time){
+     struct timespec end_time;
+     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
+     long diffInNanos = (end_time.tv_sec - start_time.tv_sec) * (long)1e9 + (end_time.tv_nsec - start_time.tv_nsec);
+     return diffInNanos;
+ }
+
 
 /*==== MAIN FUNCTION =================================================*/
 int main(int argc, char *argv[]) {
@@ -80,8 +94,8 @@ int main(int argc, char *argv[]) {
     T = (MKL_INT) T_int;
     nx = (MKL_INT) nx_int;
     nu = (MKL_INT) nu_int;
-    total_size = (2 * nx + nu) * (T-1) + 2 * nx;
-    nominal_block_size = (MKL_INT) ceil(total_size / (1.0*nprocs));
+    total_size = (2 * nx + nu) * T;
+    nominal_block_size = (MKL_INT) ceil(total_size / (1.0*nprocs)) ;
 
 /*      Check if all parameters are correct */
     if( ( nx<nu )||( nx<=0 )||( nu<=0 )||( T<=0 )||( T <= (nx / nu)  ) ) {
@@ -164,15 +178,19 @@ int main(int argc, char *argv[]) {
   //descinit_( descb, &total_size, &i_one, &nominal_block_size, &i_one, &i_zero, &i_zero, &ictxt_c, &local_size, &info );
   blacs_barrier_(&ictxt_c, "A");
   clock_t start = clock(), diff;
-
+  struct timespec vartime = timer_start();  // begin a timer called 'vartime'
 
   //pdgbsv_( &total_size, &half_bw, &half_bw, &i_one, A, &i_one, descA_b, &ipiv, b, &i_one, descb_b, work, &lwork, &info );
   pddbsv_( &total_size, &half_bw, &half_bw, &i_one, A, &i_one, descA_b, b, &i_one, descb_b, work, &lwork, &info );
+  long time_elapsed_nanos = timer_end(vartime);
   //blacs_barrier_(&ictxt_c, "A");
-  diff = clock() - start;
+  //diff = clock() - start;
 
   double msec = (double) diff / CLOCKS_PER_SEC;
-  if(iam==0)  printf("Time taken %f seconds\n", msec);
+  double sec = (double) time_elapsed_nanos / (1.0e9);
+  //if(iam==0)  printf("Time taken (nanoseconds): %ld\n", time_elapsed_nanos);
+  if(iam==0)  printf("Time taken (seconds): %f\n", sec);
+  //if(iam==0)  printf("Time taken %f seconds\n", msec);
  
   mkl_free( work );
   mkl_free( A );

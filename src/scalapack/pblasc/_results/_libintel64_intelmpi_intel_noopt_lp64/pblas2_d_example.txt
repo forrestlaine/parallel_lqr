@@ -1,0 +1,29 @@
+=== START OF EXAMPLE ===================
+Task to be solved - A*x=b, where:
+/ 1 ......... 1 \ 
+| 0 .         : | 
+| : .`.       : | 
+| :  `.`.     : |  =  A  -  n*n real matrix 
+| :    `.`.   : | 
+| :      `.`. : | 
+\ 0 ....... 0 1 / 
+
+b - random n-dimensional real vectorMatrix A can be inversed very simply:
+/ 1 -1 0 .... 0 \ 
+| 0 . .  .    : | 
+| : .`.`. `.  : | 
+| :  `.`.`. ` : |  =  inv_A 
+| :    `.`.`. 0 | 
+| :      `.`.-1 | 
+\ 0 ....... 0 1 / 
+
+n = 51, nb = 4; 2x2 - process grid
+
+=== PROGRESS ===========================
+.. Arrays are distributed ( p?geadd ) ..
+.. System of equations A*x=b is solved ( p?trsv ) ..
+.. Vector inv_A*b ( = x' ) is computed ( p?trmv ) ..
+.. Solutions are compared ..
+== Results ==
+|| x - inv_A*b ||/(2*eps*||A||) = 0.07490542544
+=== END OF EXAMPLE =====================

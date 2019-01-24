@@ -205,20 +205,20 @@ void RunTrajectoryTest(int n, int m, int T, int l, int runs) {
 //      equality_constrained_running_constraint::EqualityConstrainedRunningConstraint(&running_constraint_f,
 //                                                                                    m-1);
 
-//  parent_trajectory::ParentTrajectory parent_traj(T,
-//                                                  n,
-//                                                  m,
-//                                                  n,
-//                                                  0,
-//                                                  0,
-//                                                  &dynamics_obj,
-//                                                  &running_constraint_obj,
-//                                                  &ec_running_constraint_obj,
-//                                                  &terminal_constraint_obj,
-//                                                  &ec_terminal_constraint_obj,
-//                                                  &initial_constraint_obj,
-//                                                  &running_cost_obj,
-//                                                  &terminal_cost_obj);
+  parent_trajectory::ParentTrajectory parent_traj(T,
+                                                  n,
+                                                  m,
+                                                  n,
+                                                  0,
+                                                  0,
+                                                  &dynamics_obj,
+                                                  &running_constraint_obj,
+                                                  &ec_running_constraint_obj,
+                                                  &terminal_constraint_obj,
+                                                  &ec_terminal_constraint_obj,
+                                                  &initial_constraint_obj,
+                                                  &running_cost_obj,
+                                                  &terminal_cost_obj);
 
   trajectory::Trajectory test_traj(T,
                                    n,
@@ -263,11 +263,11 @@ void RunTrajectoryTest(int n, int m, int T, int l, int runs) {
   double t0, t1, t2, t3, t4;
   for (int run = 0; run < runs; ++run) {
     test_traj.populate_derivative_terms();
-    if (run == 0) test_traj.populate_bandsolve_terms();
+  //  if (run == 0) test_traj.populate_bandsolve_terms();
     t0 = omp_get_wtime();
-    test_traj.bandsolve_traj();
+  //  test_traj.bandsolve_traj();
     t1 = omp_get_wtime();
-    if (run == 0) test_traj.extract_bandsoln();
+    //if (run == 0) test_traj.extract_bandsoln();
     min_banded_time = std::min(t1 - t0, min_banded_time);
     avg_banded_time += (t1 - t0);
     max_banded_time = std::max(t1 - t0, max_banded_time);
@@ -284,25 +284,25 @@ void RunTrajectoryTest(int n, int m, int T, int l, int runs) {
     max_serial_time = std::max(t1 - t0, max_serial_time);
     test_traj.set_open_loop_traj();
 
-//    parent_traj.initial_state = x0;
-//    parent_traj.SetNumChildTrajectories(l);
-//    parent_traj.InitializeChildTrajectories();
-//    parent_traj.PopulateChildDerivativeTerms();
+    parent_traj.initial_state = x0;
+    parent_traj.SetNumChildTrajectories(l);
+    parent_traj.InitializeChildTrajectories();
+    parent_traj.PopulateChildDerivativeTerms();
     t0 = omp_get_wtime();
-//    parent_traj.PerformChildTrajectoryCalculations();
-//    parent_traj.CalculateFeedbackPolicies();
+    parent_traj.PerformChildTrajectoryCalculations();
+  //  parent_traj.CalculateFeedbackPolicies();
 //    std::cout<<"1"<<std::endl;
     t1 = omp_get_wtime();
-//    parent_traj.ComputeStateAndControlDependencies();
+   // parent_traj.ComputeStateAndControlDependencies();
 //    std::cout<<"2"<<std::endl;
     t2 = omp_get_wtime();
-//    parent_traj.ComputeMultipliers();
+    //parent_traj.ComputeMultipliers();
 //    std::cout<<"3"<<std::endl;
     t3 = omp_get_wtime();
-//    parent_traj.SolveForChildTrajectoryLinkPoints(0);
+    //parent_traj.SolveForChildTrajectoryLinkPoints(0);
 //    std::cout<<"4"<<std::endl;
     t4 = omp_get_wtime();
-//    parent_traj.SetOpenLoopTrajectories();
+    //parent_traj.SetOpenLoopTrajectories();
 
     min_parallel_time = std::min(t4 - t0, min_parallel_time);
     avg_parallel_time += (t4 - t0);
